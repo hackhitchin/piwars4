@@ -37,6 +37,11 @@ class Core():
             MOTOR_RIGHT_B
         )
 
+    def cleanup(self):
+        self.motor['left'].stop()  # stop the PWM output
+        self.motor['right'].stop()  # stop the PWM output
+        GPIO.cleanup()  # clean up GPIO
+
     def setup_motor(self, pwm_pin, a, b, frequency=900):
         """ Setup the GPIO for a single motor.
 
@@ -81,53 +86,69 @@ class Core():
         if not enable:
             self.set_neutral()
 
-     def throttle(self,
-                 left_speed,
-                 right_speed,
-                 left_servo=ServoEnum.LEFT_MOTOR_ESC,
-                 right_servo=ServoEnum.RIGHT_MOTOR_ESC):
+    def set_motor_speed(self, motor, a, b, speed=0.0):
+        """ Change a motors speed.
+
+        Method expects a value in the range of [-1.0, 1.0]
+        """
+        forward = True
+
+        # If speed is < 0.0, we are driving in reverse.
+        if speed < 0.0:
+            speed = -speed
+            forward = False
+
+        # Set motor directional pins
+        if forward:
+            GPIO.output(a, 1)
+            GPIO.output(b, 0)
+        else:
+            GPIO.output(a, 0)
+            GPIO.output(b, 1)
+
+        # Convert speed into PWM duty cycle
+        # and clamp values to min/max ranges.
+        dutycycle = speed * 100.0
+        if speed < 0.0:
+            speed = 0
+        elif speed > 100.0:
+            speed = 100.0
+
+        # Change the PWM duty cycle based on fabs() of speed value.
+        motor.ChangeDutyCycle(dutycycle)
+
+    def throttle(
+        self,
+        left_speed,
+        right_speed
+    ):
         """ Send motors speed value in range [-1,1]
             where 0 = neutral """
+        if self.motors_enabled:  # Ignore speed change if disabled.
+            self.set_motor_speed(
+                self.motor['left'],
+                MOTOR_LEFT_A,
+                MOTOR_LEFT_B,
+                speed=left_speed
+            )
+            self.set_motor_speed(
+                self.motor['right'],
+                MOTOR_RIGHT_A,
+                MOTOR_RIGHT_B,
+                speed=right_speed
+            )
 
-        # Calculate microseconds from command speed
-        left_micros = 0
-        right_micros = 0
-        try:
-            if left_servo != ServoEnum.SERVO_NONE:
-                left_micros = self.servos[left_servo][0].micros(left_speed)
-            if right_servo != ServoEnum.SERVO_NONE:
-                right_micros = self.servos[right_servo][0].micros(right_speed)
-        except:
-            print("Failed to get servo throttle micros")
 
-        # Tell the Arduino to move to that speed (eventually)
-        if self.arduino:
-            self.arduino.throttle(left_micros, right_micros)
-        else:
-            if self.PWMservo:
-                # TODO: make this ramp speeds using RPIO
-                try:
-                    if left_servo != ServoEnum.SERVO_NONE:
-                        self.PWMservo.set_servo(
-                            self.servos[left_servo][1],
-                            left_micros)
-                    if right_servo != ServoEnum.SERVO_NONE:
-                        self.PWMservo.set_servo(
-                            self.servos[right_servo][1],
-                            right_micros)
-                except:
-                    print("Failed to set servo throttle micros")
+def main():
+    """ Simple method used to test motor controller. """
+    core = Core()
+    # Enable motors and drive forwards for x seconds.
+    core.enable_motors(True)
+    core.throttle(1.0, 1.0)
+    time.sleep(5)
+    core.enable_motors(False)
+    # Stop PWM's and clear up GPIO
+    core.cleanup()
 
-    def read_sensor(self, pin):
-        """ Read a sensor value and return it. """
-        if self.arduino:
-            sensor_voltage = self.arduino.read_sensor()
-            sensor_value = self.prox.translate(sensor_voltage)
-        else:
-            sensor_value = self.lidars[pin].get_distance()
-        return sensor_value
-
-    def stop(self):
-        self.set_neutral()
-        for pin in range(0, 3):
-            i2c_lidar.turnoff(LIDAR_PINS[pin])
+if __name__ == '__main__':
+    main()

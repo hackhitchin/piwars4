@@ -10,3 +10,10 @@ The design is using the basic shape of TITO 1 in that it has 4x wheels which are
 Having had a similar feature on TITO 1 and subsequently not on TITO 2, we now realise it's importance.  
   
 This articulation allows all 4 wheels get best traction on a flat or undulating surface. Without it, small imperfections in tires / 3D printed chassis / or even on the floor equate to a single or multiple wheels not touching the ground and the bot not driving straight. 
+
+## Differences
+One of our main issues in past years (excluding idiotic ideas) has been our motor controllers. We have typically used remote control car ESC's due to their low cost and high power ability. What became all too apparent last year was the downside to these wonderful controllers: their fluctuating calibration with temperature, time and apparently whether a butterfly flaps it wings in Australia.  
+  
+We have spent hours, no, days testing and calibrating motors to drive straight under hard acceleration, only to turn it all off, go home and sleep, then return to "finish off the last little bit" and notice it doing something completely different :(  
+  
+The new motor controllers (although more expensive) are straight H-Bridges that can handle 12amps continuously or 30amps for a second or two. They hopefully won't suffer wondering calibration issues like we have gotten used too. 
