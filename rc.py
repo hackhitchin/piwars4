@@ -27,75 +27,69 @@ class rc:
         """Simple method to stop the RC loop"""
         self.killed = True
 
+    def mixer(self, yaw, throttle, max_power=100):
+        left = throttle + yaw
+        right = throttle - yaw
+        scale = float(max_power) / max(1, abs(left), abs(right))
+        return int(left * scale), int(right * scale)
+
     def run(self):
         """ Main Challenge method. Has to exist and is the
             start point for the threaded challenge. """
         nTicksSinceLastMenuUpdate = -1
         nTicksBetweenMenuUpdates = 10  # 10*0.05 seconds = every half second
 
-        # Grab original motor scale factors
-        left_motor_esc = self.core_module.servos[ServoEnum.LEFT_MOTOR_ESC][0]
-        right_motor_esc = self.core_module.servos[ServoEnum.RIGHT_MOTOR_ESC][0]
-        left_motor_orig_scale_factor = left_motor_esc.scale_factor
-        right_motor_orig_scale_factor = right_motor_esc.scale_factor
+        # Allow user to increase or decrease stick sensitivity
+        speed_factor = 1.0
 
-        # Change motors to 1/4 speed
-        speed_factor = 0.25
-        left_motor_esc.set_scale_factor(speed_factor)
-        right_motor_esc.set_scale_factor(speed_factor)
+        try:
+            # Loop indefinitely, or until this thread is flagged as stopped.
+            while self.controller.connected and not self.killed:
+                # While in RC mode, get joystick
+                # states and pass speeds to motors.
 
-        # Loop indefinitely, or until this thread is flagged as stopped.
-        while self.wiimote and not self.killed:
-            # While in RC mode, get joystick states and pass speeds to motors.
-            try:
-                l_joystick_state = \
-                    self.wiimote.get_classic_joystick_state(True)
-                r_joystick_state = \
-                    self.wiimote.get_classic_joystick_state(False)
-            except:
-                print("Failed to get Joystick")
+                # Test whether a button is pressed
+                self.controller.check_presses()
+                if self.controller.has_presses:
+                    if 'r1' in self.controller.presses:
+                        speed_factor += 0.1
+                    if 'l1' in self.controller.presses:
+                        speed_factor -= 0.1
 
-            # Annotate joystick states to screen
-            # if l_joystick_state:
-            #     print("l_joystick_state: {}".format(l_joystick_state))
-            # if r_joystick_state:
-            #     print("r_joystick_state: {}".format(r_joystick_state))
+                # Clamp speed factor to [0.1, 1.0]
+                if speed_factor > 1.0:
+                    speed_factor = 1.0
+                elif speed_factor < 0.1:
+                    speed_factor = 0.1
 
-            # Grab normalised x,y / steering,throttle
-            # from left and right joysticks.
-            l_joystick_pos = l_joystick_state['state']['normalised']
-            l_steering, l_throttle = l_joystick_pos
-            r_joystick_pos = r_joystick_state['state']['normalised']
-            r_steering, r_throttle = r_joystick_pos
+                # Get joystick values from the left analogue stick
+                # x_axis, y_axis = self.controller['lx', 'ly']
+                x_axis, y_axis = self.controller['rx', 'ly']
+                # print("x,y %0.2f, %0.2f" % (x_axis, y_axis))
 
-            if self.core_module:
-                self.core_module.throttle(l_throttle, r_throttle)
-            print("Motors %0.2f, %0.2f" % (l_throttle, r_throttle))
+                x_axis *= speed_factor
+                y_axis *= speed_factor
 
-            # Show motor speeds on LCD
-            if (nTicksSinceLastMenuUpdate == -1 or
-               nTicksSinceLastMenuUpdate >= nTicksBetweenMenuUpdates):
-                self.show_motor_speeds(l_throttle, r_throttle)
-                nTicksSinceLastMenuUpdate = 0
-            else:
-                nTicksSinceLastMenuUpdate = nTicksSinceLastMenuUpdate + 1
+                l_throttle, r_throttle = self.mixer(x_axis, y_axis, max_power=100)
 
-            # Sleep between loops to allow other stuff to
-            # happen and not over burden Pi and Arduino.
-            time.sleep(0.05)
+                if self.core_module:
+                    self.core_module.throttle(l_throttle, r_throttle)
+                print("Motors %0.2f, %0.2f" % (l_throttle, r_throttle))
 
-        # Reset motors to previous speed
-        left_motor_esc.set_scale_factor(left_motor_orig_scale_factor)
-        right_motor_esc.set_scale_factor(right_motor_orig_scale_factor)
+                # Show motor speeds on LCD
+                if (nTicksSinceLastMenuUpdate == -1 or
+                   nTicksSinceLastMenuUpdate >= nTicksBetweenMenuUpdates):
+                    self.show_motor_speeds(l_throttle, r_throttle)
+                    nTicksSinceLastMenuUpdate = 0
+                else:
+                    nTicksSinceLastMenuUpdate = nTicksSinceLastMenuUpdate + 1
 
-if __name__ == "__main__":
-    core = core.Core()
-    rc = rc(core)
-    try:
-        rc.run_auto()
-    except (KeyboardInterrupt) as e:
-        # except (Exception, KeyboardInterrupt) as e:
-        # Stop any active threads before leaving
-        rc.stop()
-        core.set_neutral()
-        print("Quitting")
+                # Sleep between loops to allow other stuff to
+                # happen and not over burden Pi and Arduino.
+                time.sleep(0.05)
+
+        except IOError:
+            logging.error(
+                "Could not connect to "
+                "controller. please try again"
+            )

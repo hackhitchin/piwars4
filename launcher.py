@@ -27,9 +27,8 @@ class Mode(Enum):
     MODE_NONE = 0
     MODE_POWER = 1
     MODE_RC = 2
-    MODE_WALL = 3
-    MODE_MAZE = 4
-    MODE_CALIBRATION = 5
+    MODE_MAZE = 3
+    MODE_SPEED = 4
 
 
 class launcher:
@@ -56,10 +55,9 @@ class launcher:
         # Mode/Challenge Dictionary
         self.menu_list = OrderedDict((
             (Mode.MODE_POWER, "Power Off"),
-            (Mode.MODE_RC, "RC"),
-            # (Mode.MODE_WALL, "Wall"),
+            (Mode.MODE_RC, "RC")
             # (Mode.MODE_MAZE, "Maze"),
-            (Mode.MODE_CALIBRATION, "Calibration")
+            #(Mode.MODE_SPEED, "Speed")
         ))
         self.current_mode = Mode.MODE_NONE
         self.menu_mode = Mode.MODE_RC
@@ -72,13 +70,11 @@ class launcher:
     def stop_threads(self):
         """ Single point of call to stop any RC or Challenge Threads """
         if self.challenge:
-            if (self.current_mode == Mode.MODE_CALIBRATION):
-                # Write the config file when exiting the calibration module.
-                self.challenge.write_config()
-
-            self.challenge.stop()
-            self.challenge = None
-            self.challenge_thread = None
+            try:
+                self.challenge.stop()
+            finally:
+                self.challenge = None
+                self.challenge_thread = None
             logging.info("Stopping Challenge Thread")
         else:
             logging.info("No Challenge Thread")
@@ -137,15 +133,15 @@ class launcher:
     def menu_item_pressed(self):
         """ Current menu item pressed. Do something """
         if self.menu_mode == Mode.MODE_POWER:
+            logging.info("Power Off")
             self.power_off()
         elif self.menu_mode == Mode.MODE_RC:
+            logging.info("RC Mode")
             self.start_rc_mode()
-        elif self.menu_mode == Mode.MODE_WALL:
-            logging.info("Wall Mode")
+        elif self.menu_mode == Mode.MODE_SPEED:
+            logging.info("Speed Mode")
         elif self.menu_mode == Mode.MODE_MAZE:
             logging.info("Maze Mode")
-        elif self.menu_mode == Mode.MODE_CALIBRATION:
-            self.start_calibration_mode()
 
     def menu_up(self):
         self.menu_mode = self.get_previous_mode(self.menu_mode)
@@ -258,26 +254,6 @@ class launcher:
             target=self.challenge.run)
         self.challenge_thread.start()
         logging.info("RC Thread Running")
-
-    def start_calibration_mode(self):
-        # Kill any previous Challenge / RC mode
-        self.stop_threads()
-
-        # Set Wiimote LED to RC Mode index
-        self.current_mode = Mode.MODE_CALIBRATION
-
-        # Inform user we are about to start RC mode
-        logging.info("Entering into Calibration Mode")
-        self.challenge = \
-            Calibration.Calibration(self.core, self.controller, self.oled)
-
-        # Create and start a new thread
-        # running the remote control script
-        logging.info("Starting Calibration Thread")
-        self.challenge_thread = threading.Thread(
-            target=self.challenge.run)
-        self.challenge_thread.start()
-        logging.info("Calibration Thread Running")
 
     def run(self):
         """ Main Running loop controling bot mode and menu state """
