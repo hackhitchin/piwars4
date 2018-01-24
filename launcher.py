@@ -11,12 +11,13 @@ import core
 import rc
 
 from enum import Enum
-from decorators import debounce
 
 try:
     from collections import OrderedDict
 except ImportError:
     from ordereddict import OrderedDict
+
+from approxeng.input.selectbinder import ControllerResource
 
 logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
@@ -33,10 +34,8 @@ class Mode(Enum):
 
 class launcher:
     def __init__(self):
-        self.reading_calibration = True
-
         # Initialise controller and bind now
-        self.controller = ControllerResource(dead_zone=0.1, hot_zone=0.2)
+        self.controller = None
 
         # Initialise GPIO
         GPIO.setwarnings(False)
@@ -58,8 +57,8 @@ class launcher:
         self.menu_list = OrderedDict((
             (Mode.MODE_POWER, "Power Off"),
             (Mode.MODE_RC, "RC"),
-            (Mode.MODE_WALL, "Wall"),
-            (Mode.MODE_MAZE, "Maze"),
+            # (Mode.MODE_WALL, "Wall"),
+            # (Mode.MODE_MAZE, "Maze"),
             (Mode.MODE_CALIBRATION, "Calibration")
         ))
         self.current_mode = Mode.MODE_NONE
@@ -67,7 +66,8 @@ class launcher:
 
         # Create oled object, nominating the correct I2C bus, default address
         # Note: Set to None if you need to disable screen
-        self.oled = ssd1306(VL53L0X.i2cbus)
+        # self.oled = ssd1306(VL53L0X.i2cbus)
+        self.oled = None
 
     def stop_threads(self):
         """ Single point of call to stop any RC or Challenge Threads """
@@ -134,7 +134,6 @@ class launcher:
             # Now show the mesasge on the screen
             self.oled.display()
 
-    @debounce(0.25)
     def menu_item_pressed(self):
         """ Current menu item pressed. Do something """
         if self.menu_mode == Mode.MODE_POWER:
@@ -148,12 +147,10 @@ class launcher:
         elif self.menu_mode == Mode.MODE_CALIBRATION:
             self.start_calibration_mode()
 
-    @debounce(0.25)
     def menu_up(self):
         self.menu_mode = self.get_previous_mode(self.menu_mode)
         self.show_menu()
 
-    @debounce(0.25)
     def menu_down(self):
         self.menu_mode = self.get_next_mode(self.menu_mode)
         self.show_menu()
@@ -231,15 +228,6 @@ class launcher:
             # Now show the mesasge on the screen
             self.oled.display()
 
-    def read_config(self):
-        # Read the config file when starting up.
-        if self.reading_calibration:
-            calibration = Calibration.Calibration(
-                self.core,
-                self.wiimote,
-                self)
-            calibration.read_config()
-
     def power_off(self):
         """ Power down the pi """
         self.stop_threads()
@@ -261,7 +249,7 @@ class launcher:
 
         # Inform user we are about to start RC mode
         logging.info("Entering into RC Mode")
-        self.challenge = rc.rc(self.core, self.wiimote, self.oled)
+        self.challenge = rc.rc(self.core, self.controller, self.oled)
 
         # Create and start a new thread
         # running the remote control script
@@ -281,7 +269,7 @@ class launcher:
         # Inform user we are about to start RC mode
         logging.info("Entering into Calibration Mode")
         self.challenge = \
-            Calibration.Calibration(self.core, self.wiimote, self.oled)
+            Calibration.Calibration(self.core, self.controller, self.oled)
 
         # Create and start a new thread
         # running the remote control script
@@ -295,84 +283,93 @@ class launcher:
         """ Main Running loop controling bot mode and menu state """
         # Show state on OLED display
         self.show_message('Booting...')
-
-        # Read config file FIRST
-        self.read_config()
-
         self.show_message('Initialising Bluetooth...')
 
-        # Never stop looking for wiimote.
+        # Never stop looking for controller.
         while not self.killed:
-            if self.oled is not None:
-                # Show state on OLED display
-                self.oled.cls()  # Clear screen
-                self.oled.canvas.text(
-                    (10, 10),
-                    'Waiting for WiiMote...',
-                    fill=1)
-                self.oled.canvas.text(
-                    (10, 30),
-                    '***Press 1+2 now ***',
-                    fill=1)
-                self.oled.display()
 
-            self.wiimote = None
             try:
-                self.wiimote = Wiimote()
+                if self.oled is not None:
+                    # Show state on OLED display
+                    self.oled.cls()  # Clear screen
+                    self.oled.canvas.text(
+                        (10, 10),
+                        'Waiting for controller...',
+                        fill=1)
+                    # self.oled.canvas.text(
+                    #     (10, 30),
+                    #     '***Press 1+2 now ***',
+                    #     fill=1)
+                    self.oled.display()
 
-            except WiimoteException:
-                logging.error("Could not connect to wiimote. please try again")
+                # Initialise controller and bind now
+                with ControllerResource(dead_zone=0.1, hot_zone=0.2) as self.controller:
 
-            # Show state on OLED display
-            self.show_menu()
+                    # Show state on OLED display
+                    self.show_menu()
 
-            # Constantly check wiimote for button presses
-            while self.wiimote:
-                buttons_state = self.wiimote.get_buttons()
-                classic_buttons_state = self.wiimote.get_classic_buttons()
+                    # Constantly check controller for button presses
+                    while self.controller.connected:
 
-                if buttons_state is not None:
-                    if (buttons_state & cwiid.BTN_A and
-                       self.challenge is None):
-                        # Only works when NOT in a challenge
-                        self.menu_item_pressed()
-                        self.show_menu()
+                        # Get joystick values from the left analogue stick
+                        # x_axis, y_axis = self.controller['lx', 'ly']
 
-                    if (buttons_state & cwiid.BTN_B):
-                        # Kill any previous Challenge / RC mode
-                        # NOTE: will ALWAYS work
-                        self.stop_threads()
+                        # Get a ButtonPresses object containing everything
+                        # that was pressed since the last time around this
+                        # loop.
+                        self.controller.check_presses()
 
-                    if (buttons_state & cwiid.BTN_UP and
-                       self.challenge is None):
-                        # Only works when NOT in a challenge
-                        self.menu_up()
+                        # Print out any buttons that were
+                        # pressed, if we had any
+                        # print(self.controller.presses)
 
-                    if (buttons_state & cwiid.BTN_DOWN and
-                       self.challenge is None):
-                        # Only works when NOT in a challenge
-                        self.menu_down()
+                        # Test whether a button is pressed
+                        if self.controller.has_presses:
 
-                if classic_buttons_state is not None:
-                    if (classic_buttons_state & cwiid.CLASSIC_BTN_ZL or
-                            classic_buttons_state & cwiid.CLASSIC_BTN_ZR):
-                        # One of the Z buttons pressed, disable
-                        # motors and set neutral.
-                        # NOTE: will ALWAYS work
-                        self.core.enable_motors(False)
-                    else:
-                        # Neither Z buttons pressed,
-                        # allow motors to move freely.
-                        # NOTE: will ALWAYS work
-                        self.core.enable_motors(True)
+                            if ('dright' in self.controller.presses and
+                               self.challenge is None):
+                                # Only works when NOT in a challenge
+                                self.menu_item_pressed()
+                                self.show_menu()
 
-                time.sleep(0.05)
+                            if 'home' in self.controller.presses:
+                                # Kill any previous Challenge / RC mode
+                                # NOTE: will ALWAYS work
+                                self.stop_threads()
 
-                # Verify Wiimote is connected each loop. If not, set wiimote
-                # to None and it "should" attempt to reconnect.
-                if not self.wiimote.wm:
-                    self.stop_threads()
-                    self.wiimote = None
+                            if ('dup' in self.controller.presses and
+                               self.challenge is None):
+                                # Only works when NOT in a challenge
+                                self.menu_up()
+
+                            if ('ddown' in self.controller.presses and
+                               self.challenge is None):
+                                # Only works when NOT in a challenge
+                                self.menu_down()
+
+                            if 'home' in self.controller.presses:
+                                # One of the Z buttons pressed, disable
+                                # motors and set neutral.
+                                # NOTE: will ALWAYS work
+                                self.core.enable_motors(False)
+                            if 'start' in self.controller.presses:
+                                # Neither Z buttons pressed,
+                                # allow motors to move freely.
+                                # NOTE: will ALWAYS work
+                                self.core.enable_motors(True)
+                        time.sleep(0.05)
+
+            except IOError:
+                logging.error(
+                    "Could not connect to "
+                    "controller. please try again"
+                )
+                # kill any active challenges as RC no longer connected
+                self.stop_threads()
+                # We get an IOError when using the ControllerResource
+                # if we don't have a controller yet, so in this case
+                # we just wait a second and try again after printing a message.
+                time.sleep(1)
 
 
 if __name__ == "__main__":
@@ -381,7 +378,7 @@ if __name__ == "__main__":
         launcher.run()
     except (Exception, KeyboardInterrupt) as e:
         # Stop any active threads before leaving
-        launcher.wiimote = None
+        launcher.controller = None
         launcher.stop_threads()  # This will set neutral for us.
         print("Stopping")
         print(str(e))
