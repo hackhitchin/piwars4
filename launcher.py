@@ -1,20 +1,15 @@
 #!/usr/bin/env python
 import os
 import sys
-import cwiid
 import logging
 import time
 import threading
-from wiimote import Wiimote, WiimoteException
+
 import RPi.GPIO as GPIO
 
 import core
 import rc
-import Calibration
-from lib_oled96 import ssd1306
 
-import VL53L0X
-# from smbus import SMBus  # Commented out as I don't believe its required.
 from enum import Enum
 from decorators import debounce
 
@@ -40,13 +35,16 @@ class launcher:
     def __init__(self):
         self.reading_calibration = True
 
-        # Initialise wiimote, will be created at beginning of loop.
-        self.wiimote = None
-        # Instantiate CORE / Chassis module and store in the launcher.
-        self.core = core.Core(VL53L0X.tof_lib)
+        # Initialise controller and bind now
+        self.controller = ControllerResource(dead_zone=0.1, hot_zone=0.2)
 
+        # Initialise GPIO
         GPIO.setwarnings(False)
         self.GPIO = GPIO
+        self.GPIO.setmode(self.GPIO.BCM)
+
+        # Instantiate CORE / Chassis module and store in the launcher.
+        self.core = core.Core(self.GPIO)
 
         self.challenge = None
         self.challenge_thread = None

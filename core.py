@@ -1,5 +1,5 @@
 from __future__ import division
-import RPi.GPIO as GPIO
+import time
 
 MOTOR_LEFT_A = 17
 MOTOR_LEFT_PWM = 27
@@ -15,14 +15,12 @@ class Core():
         controlled using a 2 axis (throttle, steering)
         system """
 
-    def __init__(self, tof_lib):
+    def __init__(self, GPIO):
         """ Constructor """
 
         # Motors will be disabled by default.
         self.motors_enabled = False
-
-        # Set pin number meaning
-        GPIO.setmode(GPIO.BCM)
+        self.GPIO = GPIO
 
         # Configure motor pins with GPIO
         self.motor = dict()
@@ -40,23 +38,23 @@ class Core():
     def cleanup(self):
         self.motor['left'].stop()  # stop the PWM output
         self.motor['right'].stop()  # stop the PWM output
-        GPIO.cleanup()  # clean up GPIO
+        self.GPIO.cleanup()  # clean up GPIO
 
     def setup_motor(self, pwm_pin, a, b, frequency=900):
         """ Setup the GPIO for a single motor.
 
         Return: PWM controller for single motor.
         """
-        GPIO.setup(pwm_pin, GPIO.OUT)
-        GPIO.setup(a, GPIO.OUT)
-        GPIO.setup(b, GPIO.OUT)
+        self.GPIO.setup(pwm_pin, self.GPIO.OUT)
+        self.GPIO.setup(a, self.GPIO.OUT)
+        self.GPIO.setup(b, self.GPIO.OUT)
 
         # Initialise a and b pins to zero (neutral)
-        GPIO.output(a, 0)
-        GPIO.output(b, 0)
+        self.GPIO.output(a, 0)
+        self.GPIO.output(b, 0)
 
         # create object D2A for PWM
-        D2A = GPIO.PWM(pwm_pin, frequency)
+        D2A = self.GPIO.PWM(pwm_pin, frequency)
         D2A.start(0)  # Initialise the PWM with a 0 percent duty cycle (off)
         return D2A
 
@@ -67,10 +65,10 @@ class Core():
         pin_value = 0
         if braked:
             pin_value = 1  # Setting to HIGH will do active braking.
-        GPIO.output(MOTOR_LEFT_A, pin_value)
-        GPIO.output(MOTOR_LEFT_B, pin_value)
-        GPIO.output(MOTOR_RIGHT_A, pin_value)
-        GPIO.output(MOTOR_RIGHT_B, pin_value)
+        self.GPIO.output(MOTOR_LEFT_A, pin_value)
+        self.GPIO.output(MOTOR_LEFT_B, pin_value)
+        self.GPIO.output(MOTOR_RIGHT_A, pin_value)
+        self.GPIO.output(MOTOR_RIGHT_B, pin_value)
 
         # Turn motors off by setting duty cycle back to zero.
         dutycycle = 0.0
@@ -100,11 +98,11 @@ class Core():
 
         # Set motor directional pins
         if forward:
-            GPIO.output(a, 1)
-            GPIO.output(b, 0)
+            self.GPIO.output(a, 1)
+            self.GPIO.output(b, 0)
         else:
-            GPIO.output(a, 0)
-            GPIO.output(b, 1)
+            self.GPIO.output(a, 0)
+            self.GPIO.output(b, 1)
 
         # Convert speed into PWM duty cycle
         # and clamp values to min/max ranges.
@@ -141,14 +139,25 @@ class Core():
 
 def main():
     """ Simple method used to test motor controller. """
-    core = Core()
+    import RPi.GPIO as GPIO
+    GPIO.setmode(GPIO.BCM)
+
+    print("Creating CORE object")
+    core = Core(GPIO)
+
     # Enable motors and drive forwards for x seconds.
+    print("Enabling Motors")
     core.enable_motors(True)
-    core.throttle(1.0, 1.0)
+
+    print("Setting Full Throttle")
+    core.throttle(0.1, 0.1)
     time.sleep(5)
+
+    print("Disabling Motors")
     core.enable_motors(False)
     # Stop PWM's and clear up GPIO
     core.cleanup()
+    print("Finished")
 
 if __name__ == '__main__':
     main()
