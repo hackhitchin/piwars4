@@ -17,6 +17,7 @@ try:
 except ImportError:
     from ordereddict import OrderedDict
 
+import smbus
 from lib_oled96 import ssd1306
 from approxeng.input.selectbinder import ControllerResource
 
@@ -65,8 +66,9 @@ class launcher:
 
         # Create oled object, nominating the correct I2C bus, default address
         # Note: Set to None if you need to disable screen
+        self.i2cbus = smbus.SMBus(1)
         try:
-            self.oled = ssd1306(VL53L0X.i2cbus)
+            self.oled = ssd1306(self.i2cbus)
         except:
             self.oled = None
 

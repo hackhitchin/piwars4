@@ -107,10 +107,10 @@ class Core():
         # Convert speed into PWM duty cycle
         # and clamp values to min/max ranges.
         dutycycle = speed * 100.0
-        if speed < 0.0:
-            speed = 0
-        elif speed > 100.0:
-            speed = 100.0
+        if dutycycle < 0.0:
+            dutycycle = 0
+        elif dutycycle > 100.0:
+            dutycycle = 100.0
 
         # Change the PWM duty cycle based on fabs() of speed value.
         motor.ChangeDutyCycle(dutycycle)
