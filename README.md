@@ -17,3 +17,17 @@ One of our main issues in past years (excluding idiotic ideas) has been our moto
 We have spent hours, no, days testing and calibrating motors to drive straight under hard acceleration, only to turn it all off, go home and sleep, then return to "finish off the last little bit" and notice it doing something completely different :(  
   
 The new motor controllers (although more expensive) are straight H-Bridges that can handle 12amps continuously or 30amps for a second or two. They hopefully won't suffer wondering calibration issues like we have gotten used too. 
+
+## Install Instructions
+'''
+cd ~  
+mkdir Projects  
+cd Projects  
+git clone https://github.com/hackhitchin/piwars4.git  
+sudo apt-get install python-dev python-setuptools  
+sudo easy_install -U RPIO  
+sudo pip install --upgrade pip enum34  
+sudo pip install ordereddict
+'''  
+  
+Note: I2C must be enabled in the interfacting options of raspi-config.
