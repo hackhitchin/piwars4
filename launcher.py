@@ -65,8 +65,10 @@ class launcher:
 
         # Create oled object, nominating the correct I2C bus, default address
         # Note: Set to None if you need to disable screen
-        self.oled = ssd1306(VL53L0X.i2cbus)
-        # self.oled = None
+        try:
+            self.oled = ssd1306(VL53L0X.i2cbus)
+        except:
+            self.oled = None
 
     def stop_threads(self):
         """ Single point of call to stop any RC or Challenge Threads """
