@@ -23,6 +23,20 @@ class rc:
             # Now show the mesasge on the screen
             self.oled.display()
 
+    def show_state(self):
+        """ Show motor/aux config on OLED display """
+        if self.oled is not None:
+            # Format the speed to 2dp
+            if self.core_module.motors_enabled:
+                message = "RC: %0.2f" % (self.core_module.speed_factor)
+            else:
+                message = "RC: NEUTRAL"
+
+            self.oled.cls()  # Clear Screen
+            self.oled.canvas.text((10, 10), message, fill=1)
+            # Now show the mesasge on the screen
+            self.oled.display()
+
     def stop(self):
         """Simple method to stop the RC loop"""
         self.killed = True
@@ -36,11 +50,8 @@ class rc:
     def run(self):
         """ Main Challenge method. Has to exist and is the
             start point for the threaded challenge. """
-        nTicksSinceLastMenuUpdate = -1
-        nTicksBetweenMenuUpdates = 10  # 10*0.05 seconds = every half second
-
-        # Allow user to increase or decrease stick sensitivity
-        speed_factor = 1.0
+        # nTicksSinceLastMenuUpdate = -1
+        # nTicksBetweenMenuUpdates = 10  # 10*0.05 seconds = every half second
 
         try:
             # Loop indefinitely, or until this thread is flagged as stopped.
@@ -48,41 +59,29 @@ class rc:
                 # While in RC mode, get joystick
                 # states and pass speeds to motors.
 
-                # Test whether a button is pressed
-                self.controller.check_presses()
-                if self.controller.has_presses:
-                    if 'r1' in self.controller.presses:
-                        speed_factor += 0.1
-                    if 'l1' in self.controller.presses:
-                        speed_factor -= 0.1
-
-                # Clamp speed factor to [0.1, 1.0]
-                if speed_factor > 1.0:
-                    speed_factor = 1.0
-                elif speed_factor < 0.1:
-                    speed_factor = 0.1
-
                 # Get joystick values from the left analogue stick
                 # x_axis, y_axis = self.controller['lx', 'ly']
                 x_axis, y_axis = self.controller['rx', 'ly']
-                # print("x,y %0.2f, %0.2f" % (x_axis, y_axis))
 
-                x_axis *= speed_factor
-                y_axis *= speed_factor
-
-                l_throttle, r_throttle = self.mixer(x_axis, y_axis, max_power=100)
+                l_throttle, r_throttle = self.mixer(
+                    x_axis, y_axis, max_power=100)
 
                 if self.core_module:
                     self.core_module.throttle(l_throttle, r_throttle)
-                print("Motors %0.2f, %0.2f" % (l_throttle, r_throttle))
+
+                    if self.core_module.motors_enabled:
+                        print("Motors %0.2f, %0.2f" % (l_throttle, r_throttle))
+                    else:
+                        print("RC: NEUTRAL")
 
                 # Show motor speeds on LCD
-                if (nTicksSinceLastMenuUpdate == -1 or
-                   nTicksSinceLastMenuUpdate >= nTicksBetweenMenuUpdates):
-                    self.show_motor_speeds(l_throttle, r_throttle)
-                    nTicksSinceLastMenuUpdate = 0
-                else:
-                    nTicksSinceLastMenuUpdate = nTicksSinceLastMenuUpdate + 1
+                # if (nTicksSinceLastMenuUpdate == -1 or
+                #    nTicksSinceLastMenuUpdate >= nTicksBetweenMenuUpdates):
+                #     # self.show_motor_speeds(l_throttle, r_throttle)
+                #     self.show_state()
+                #     nTicksSinceLastMenuUpdate = 0
+                # else:
+                #     nTicksSinceLastMenuUpdate = nTicksSinceLastMenuUpdate + 1
 
                 # Sleep between loops to allow other stuff to
                 # happen and not over burden Pi and Arduino.

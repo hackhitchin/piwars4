@@ -1,14 +1,15 @@
 from __future__ import division
 import time
 
-MOTOR_LEFT_A = 17
-MOTOR_LEFT_PWM = 27
-MOTOR_LEFT_B = 22
+MOTOR_LEFT_PWM = 17
+MOTOR_LEFT_A = 22
+MOTOR_LEFT_B = 27
 
-MOTOR_RIGHT_A = 23
 MOTOR_RIGHT_PWM = 18
+MOTOR_RIGHT_A = 23
 MOTOR_RIGHT_B = 24
 
+MAX_SPEED = 90
 
 class Core():
     """ Instantiate a 4WD drivetrain, utilising 2x H Bridges,
@@ -35,12 +36,31 @@ class Core():
             MOTOR_RIGHT_B
         )
 
+        # Speed Multiplier 1.0 == max
+        self.speed_factor = 1.0
+
+    def increase_speed_factor(self):
+        self.speed_factor += 0.1
+        # Clamp speed factor to [0.1, 1.0]
+        if self.speed_factor > 1.0:
+            self.speed_factor = 1.0
+        elif self.speed_factor < 0.1:
+            self.speed_factor = 0.1
+
+    def decrease_speed_factor(self):
+        self.speed_factor -= 0.1
+        # Clamp speed factor to [0.1, 1.0]
+        if self.speed_factor > 1.0:
+            self.speed_factor = 1.0
+        elif self.speed_factor < 0.1:
+            self.speed_factor = 0.1
+
     def cleanup(self):
         self.motor['left'].stop()  # stop the PWM output
         self.motor['right'].stop()  # stop the PWM output
         self.GPIO.cleanup()  # clean up GPIO
 
-    def setup_motor(self, pwm_pin, a, b, frequency=900):
+    def setup_motor(self, pwm_pin, a, b, frequency=5000):
         """ Setup the GPIO for a single motor.
 
         Return: PWM controller for single motor.
@@ -96,6 +116,8 @@ class Core():
             speed = -speed
             forward = False
 
+        speed *= self.speed_factor
+
         # Set motor directional pins
         if forward:
             self.GPIO.output(a, 1)
@@ -106,11 +128,13 @@ class Core():
 
         # Convert speed into PWM duty cycle
         # and clamp values to min/max ranges.
-        dutycycle = speed * 100.0
+        dutycycle = speed
         if dutycycle < 0.0:
-            dutycycle = 0
-        elif dutycycle > 100.0:
-            dutycycle = 100.0
+            dutycycle = 0.0
+        elif dutycycle > MAX_SPEED:
+            dutycycle = MAX_SPEED
+
+        print(dutycycle)
 
         # Change the PWM duty cycle based on fabs() of speed value.
         motor.ChangeDutyCycle(dutycycle)

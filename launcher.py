@@ -316,6 +316,7 @@ class launcher:
                             if 'home' in self.controller.presses:
                                 # Kill any previous Challenge / RC mode
                                 # NOTE: will ALWAYS work
+                                self.core.enable_motors(False)
                                 self.stop_threads()
 
                             if ('dup' in self.controller.presses and
@@ -328,16 +329,22 @@ class launcher:
                                 # Only works when NOT in a challenge
                                 self.menu_down()
 
-                            if 'home' in self.controller.presses:
-                                # One of the Z buttons pressed, disable
-                                # motors and set neutral.
-                                # NOTE: will ALWAYS work
-                                self.core.enable_motors(False)
                             if 'start' in self.controller.presses:
-                                # Neither Z buttons pressed,
+                                # Toggle motor enable/disable
                                 # allow motors to move freely.
                                 # NOTE: will ALWAYS work
-                                self.core.enable_motors(True)
+                                self.core.enable_motors(not self.core.motors_enabled)
+
+                            # Increase or Decrease motor speed factor
+                            if 'r1' in self.controller.presses:
+                                self.core.increase_speed_factor()
+                            if 'l1' in self.controller.presses:
+                                self.core.decrease_speed_factor()
+
+                            # Show current challenge state if we press buttons
+                            if self.challenge:
+                                self.challenge.show_state()
+
                         time.sleep(0.05)
 
             except IOError:
