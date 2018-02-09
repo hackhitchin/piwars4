@@ -12,6 +12,8 @@ import picamera
 import picamera.array
 import cv2
 import numpy 
+import core
+import RPi.GPIO as GPIO
 
 print('Libraries loaded')
 
@@ -23,6 +25,8 @@ global processor
 global debug
 global colour
 global colourindex
+global imageCentreX
+global imageCentreY
 
 running = True
 debug = False
@@ -45,7 +49,9 @@ autoFullSpeedArea = 300  # Target size at which we use the maximum allowed outpu
 
 # Image stream processing thread
 class StreamProcessor(threading.Thread):
-    def __init__(self):
+
+    def __init__(self, core_module):
+        self.core_module = core_module
         super(StreamProcessor, self).__init__()
         self.stream = picamera.array.PiRGBArray(camera)
         self.event = threading.Event()
@@ -154,6 +160,9 @@ class StreamProcessor(threading.Thread):
         global colours
         global colourindex
         global running
+        global imageCentreX
+        global imageCentreY
+
         driveLeft = 0.0
         driveRight = 0.0
         if ball:
@@ -195,6 +204,7 @@ class StreamProcessor(threading.Thread):
             driveLeft = 0.4
             driveRight = 0.0
         print('%.2f, %.2f' % (driveLeft, driveRight))
+        self.core_module.throttle(driveLeft, driveRight)
 
 
 # SetMotor1(driveLeft)
@@ -226,50 +236,64 @@ class ImageCapture(threading.Thread):
                 yield processor.stream
                 processor.event.set()
 
+def main():
 
-# Startup sequence
-print('Setup camera')
-camera = picamera.PiCamera()
-camera.resolution = (imageWidth, imageHeight)
-camera.framerate = frameRate
-camera.awb_mode = 'off'
-with open("rbgains.txt") as f:
-    content = f.readlines()
-content = [x.strip() for x in content]
-redgain = float(content[0][2:])
-bluegain = float(content[1][2:])
-camera.awb_gains = (redgain, bluegain)
+	# Startup sequence
+	global camera
+	global processor
+	global imageCentreX
+	global imageCentreY
+        # Initialise GPIO
+        GPIO.setwarnings(False)
+        GPIO.setmode(GPIO.BCM)
 
-imageCentreX = imageWidth / 2.0
-imageCentreY = imageHeight / 2.0
+        # Instantiate CORE / Chassis module and store in the launcher.
+        core_module = core.Core(GPIO)
 
-print('Setup the stream processing thread')
-processor = StreamProcessor()
+	print('Setup camera')
+	camera = picamera.PiCamera()
+	camera.resolution = (imageWidth, imageHeight)
+	camera.framerate = frameRate
+	camera.awb_mode = 'off'
+	with open("rbgains.txt") as f:
+		content = f.readlines()
+	content = [x.strip() for x in content]
+	redgain = float(content[0][2:])
+	bluegain = float(content[1][2:])
+	camera.awb_gains = (redgain, bluegain)
 
-print('Wait ...')
-time.sleep(2)
-captureThread = ImageCapture()
+	imageCentreX = imageWidth / 2.0
+	imageCentreY = imageHeight / 2.0
 
-try:
-    print('Press CTRL+C to quit')
-    ##    TB.MotorsOff()
-    ##    TB.SetLedShowBattery(True)
-    # Loop indefinitely until we are no longer running
-    while running:
-        # Wait for the interval period
-        #
-        time.sleep(0.1)
-except KeyboardInterrupt:
-    print("User shutdown\n")
-except:
-    e = sys.exc_info()[0]
-    print
-    print(e)
+	print('Setup the stream processing thread')
+	processor = StreamProcessor(core_module)
 
-running = False
-captureThread.join()
-processor.terminated = True
-processor.join()
-del camera
-print("Program terminated")
+	print('Wait ...')
+	time.sleep(2)
+	captureThread = ImageCapture()
 
+	try:
+		print('Press CTRL+C to quit')
+		##    TB.MotorsOff()
+		##    TB.SetLedShowBattery(True)
+		# Loop indefinitely until we are no longer running
+		while running:
+			# Wait for the interval period
+			#
+			time.sleep(0.1)
+	except KeyboardInterrupt:
+		print("User shutdown\n")
+	except:
+		e = sys.exc_info()[0]
+		print
+		print(e)
+
+	running = False
+	captureThread.join()
+	processor.terminated = True
+	processor.join()
+	del camera
+	print("Program terminated")
+
+if __name__ == '__main__':
+    main()
