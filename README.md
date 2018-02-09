@@ -19,7 +19,7 @@ We have spent hours, no, days testing and calibrating motors to drive straight u
 The new motor controllers (although more expensive) are straight H-Bridges that can handle 12amps continuously or 30amps for a second or two. They hopefully won't suffer wondering calibration issues like we have gotten used too. 
 
 ## Install Instructions
-'''
+```
 cd ~  
 mkdir Projects  
 cd Projects  
@@ -28,7 +28,7 @@ sudo apt-get install python-dev python-setuptools
 sudo easy_install -U RPIO  
 sudo pip install --upgrade pip enum34  
 sudo pip install ordereddict
-'''  
+```  
   
 Note: I2C must be enabled in the interfacing options of raspi-config.
 
@@ -36,10 +36,10 @@ Note: I2C must be enabled in the interfacing options of raspi-config.
 Before running example_ball, you'll want to white balance for your local lighting conditions.  
   
 ### Calibrating White Balance
-Hold a piece of white paper in front of the camera and run '''whitebalance.py'''. This will work out the optimal camera gains and save them locally for other scripts to use.  
+Hold a piece of white paper in front of the camera and run ```whitebalance.py```. This will work out the optimal camera gains and save them locally for other scripts to use.  
 
 ### Testing Call Finder Module
-'''example_ball.py''' should run standalone and detect the coloured balls, I haven't tried it as part of the overall code.  
+```example_ball.py``` should run standalone and detect the coloured balls, I haven't tried it as part of the overall code.  
 
 ### Notes
-Both calibration and ball finder module may complain if there isn't a display for them to use; run '''export DISPLAY=:0''' to tell them to send output to the Pi desktop.
+Both calibration and ball finder module may complain if there isn't a display for them to use; run ```export DISPLAY=:0``` to tell them to send output to the Pi desktop.
