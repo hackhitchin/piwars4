@@ -30,8 +30,16 @@ sudo pip install --upgrade pip enum34
 sudo pip install ordereddict
 '''  
   
-Note: I2C must be enabled in the interfacting options of raspi-config.
+Note: I2C must be enabled in the interfacing options of raspi-config.
 
 ## OpenCV ball finding
+Before running example_ball, you'll want to white balance for your local lighting conditions.  
+  
+### Calibrating White Balance
+Hold a piece of white paper in front of the camera and run '''whitebalance.py'''. This will work out the optimal camera gains and save them locally for other scripts to use.  
 
-Before running example_ball, you'll want to white balance for your local lighting conditions.  Hold a piece of white paper in front of the camera and run whitebalance.py - this will work out the optimal camera gains and save them locally for other scripts to use.  example_ball.py should run standalone and detect the coloured balls, I haven't tried it as part of the overall code.  Both may complain if there isn't a display for them to use; run "export DISPLAY=:0" to tell them to send output to the Pi desktop.
+### Testing Call Finder Module
+'''example_ball.py''' should run standalone and detect the coloured balls, I haven't tried it as part of the overall code.  
+
+### Notes
+Both calibration and ball finder module may complain if there isn't a display for them to use; run '''export DISPLAY=:0''' to tell them to send output to the Pi desktop.
