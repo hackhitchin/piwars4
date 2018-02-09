@@ -60,7 +60,7 @@ class Core():
         self.motor['right'].stop()  # stop the PWM output
         self.GPIO.cleanup()  # clean up GPIO
 
-    def setup_motor(self, pwm_pin, a, b, frequency=5000):
+    def setup_motor(self, pwm_pin, a, b, frequency=10000):
         """ Setup the GPIO for a single motor.
 
         Return: PWM controller for single motor.
