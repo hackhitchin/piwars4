@@ -29,8 +29,8 @@ global imageCentreX
 global imageCentreY
 
 running = True
-debug = False
-colours = ['green','red','blue','yellow']
+debug = True
+colours = ['red','green','blue','yellow']
 colourindex = 0
 colour = colours[colourindex]
 
@@ -95,9 +95,10 @@ class StreamProcessor(threading.Thread):
 
 
         if colour == "red":
-            imrange = cv2.inRange(image, numpy.array((118, 127, 64)), numpy.array((125, 255, 255)))
+            imrange = cv2.inRange(image, numpy.array((113, 64, 64)), numpy.array((125, 255, 255)))
         elif colour == "green":
-            imrange = cv2.inRange(image, numpy.array((60, 127, 64)), numpy.array((85, 255, 255)))
+            # imrange = cv2.inRange(image, numpy.array((60, 127, 64)), numpy.array((85, 255, 255)))
+            imrange = cv2.inRange(image, numpy.array((50, 64, 0)), numpy.array((75, 255, 255)))
         elif colour == 'blue':
             imrange = cv2.inRange(image, numpy.array((0, 64, 64)), numpy.array((15, 255, 255)))
         elif colour == 'yellow':
