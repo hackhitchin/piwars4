@@ -210,15 +210,15 @@ class StreamProcessor(threading.Thread):
                 speed += autoMinPower
                 direction = (imageCentreX - x) / imageCentreX
                 if direction < 0.0:
-                    # Turn right
-                    print('Turn Right for %s' % colour)
-                    driveLeft = speed
-                    driveRight = speed * (1.0 + direction)
-                else:
                     # Turn left
-                    print('Turn Left for %s' % colour)
-                    driveLeft = speed * (1.0 - direction)
+                    print('Turn left for %s' % colour)
+                    driveLeft = speed * (1.0 + direction)
                     driveRight = speed
+                else:
+                    # Turn right
+                    print('Turn right for %s' % colour)
+                    driveLeft = speed
+                    driveRight = speed * (1.0 - direction)
         else:
             print('No %s ball' % colour)
             driveLeft = 0.4
