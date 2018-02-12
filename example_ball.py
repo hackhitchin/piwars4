@@ -3,15 +3,15 @@
 
 # Load library functions we want
 import time
-import os
+# import os
 import sys
 # import ThunderBorg
-import io
+# import io
 import threading
 import picamera
 import picamera.array
 import cv2
-import numpy 
+import numpy
 import core
 import RPi.GPIO as GPIO
 
@@ -29,8 +29,8 @@ global imageCentreX
 global imageCentreY
 
 running = True
-debug = True
-colours = ['red','green','blue','yellow']
+debug = False
+colours = ['green', 'red', 'blue', 'yellow']
 colourindex = 0
 colour = colours[colourindex]
 
@@ -77,7 +77,7 @@ class StreamProcessor(threading.Thread):
     # Image processing function
     def ProcessImage(self, image, colour):
         # View the original image seen by the camera.
-        #if debug:
+        # if debug:
         #    cv2.imshow('original', image)
         #    cv2.waitKey(0)
 
@@ -89,37 +89,56 @@ class StreamProcessor(threading.Thread):
 
         # Convert the image from 'BGR' to HSV colour space
         image = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
-        #if debug:
+        # if debug:
         #    cv2.imshow('cvtColour', image)
         #    cv2.waitKey(0)
 
-
         if colour == "red":
-            imrange = cv2.inRange(image, numpy.array((113, 64, 64)), numpy.array((125, 255, 255)))
+            imrange = cv2.inRange(
+                image,
+                numpy.array((113, 96, 64)),
+                numpy.array((125, 255, 255))
+            )
         elif colour == "green":
-            # imrange = cv2.inRange(image, numpy.array((60, 127, 64)), numpy.array((85, 255, 255)))
-            imrange = cv2.inRange(image, numpy.array((50, 64, 0)), numpy.array((75, 255, 255)))
+            imrange = cv2.inRange(
+                image,
+                numpy.array((50, 96, 64)),
+                numpy.array((85, 255, 255))
+            )
         elif colour == 'blue':
-            imrange = cv2.inRange(image, numpy.array((0, 64, 64)), numpy.array((15, 255, 255)))
+            imrange = cv2.inRange(
+                image,
+                numpy.array((0, 64, 64)),
+                numpy.array((15, 255, 255))
+            )
         elif colour == 'yellow':
-            imrange = cv2.inRange(image, numpy.array((90, 64, 64)), numpy.array((110, 255, 255)))
+            imrange = cv2.inRange(
+                image,
+                numpy.array((90, 64, 64)),
+                numpy.array((110, 255, 255))
+            )
 
-        # I used the following code to find the approximate 'hue' of the ball in
+        # I used the following code to find
+        # the approximate 'hue' of the ball in
         # front of the camera
-        #for crange in range(100,114,2):
+        # for crange in range(100,114,2):
         #    imrange = cv2.inRange(image, numpy.array((crange, 64, 64)), numpy.array((crange+2, 255, 255)))
         #    print(crange)
         #    cv2.imshow('range',imrange)
         #    cv2.waitKey(0)
-        
+
         # View the filtered image found by 'imrange'
         if debug:
             cv2.imshow('imrange', imrange)
             cv2.waitKey()
 
         # Find the contours
-        contourimage, contours, hierarchy = cv2.findContours(imrange, cv2.RETR_LIST, cv2.CHAIN_APPROX_SIMPLE)
-        #if debug:
+        contourimage, contours, hierarchy = cv2.findContours(
+            imrange,
+            cv2.RETR_LIST,
+            cv2.CHAIN_APPROX_SIMPLE
+        )
+        # if debug:
         #    cv2.imshow('contour', contourimage)
         #    cv2.waitKey(0)
 
@@ -128,10 +147,10 @@ class StreamProcessor(threading.Thread):
         x = -1
         y = -1
         area = 0
-        for (idx,contour) in enumerate(contours):
+        for (idx, contour) in enumerate(contours):
             x, y, w, h = cv2.boundingRect(contour)
-            cx = x + (w / 2)
-            cy = y + (h / 2)
+            # cx = x + (w / 2)
+            # cy = y + (h / 2)
             area = w * h
 
             extent = float(area)/area
@@ -141,11 +160,11 @@ class StreamProcessor(threading.Thread):
             cont_ballsiness *= (0.75/extent if extent > 0.75 else extent)
             if (cont_ballsiness > ballsiness):
                 if (debug):
-                   print("New ballsiest: %f" % ballsiness)
-                   print "extent = " + str(extent)
-                   print "aspect = " + str(aspect)
+                    print("New ballsiest: %f" % ballsiness)
+                    print("extent = " + str(extent))
+                    print("aspect = " + str(aspect))
                 ballsiness = cont_ballsiness
-                ballsiest_index = idx
+                # ballsiest_index = idx
 
         if area > 0:
             ball = [x, y, area]
@@ -177,11 +196,11 @@ class StreamProcessor(threading.Thread):
                 print('Close enough')
                 colourindex = colourindex + 1
                 if (colourindex >= len(colours)):
-                    print ('Donezo!')
+                    print('Donezo!')
                     running = False
                 else:
                     colour = colours[colourindex]
-                    print('Now looking for %s ball' % (colour) )
+                    print('Now looking for %s ball' % (colour))
             else:
                 if area < autoFullSpeedArea:
                     speed = 1.0
@@ -221,7 +240,11 @@ class ImageCapture(threading.Thread):
         global camera
         global processor
         print('Start the stream using the video port')
-        camera.capture_sequence(self.TriggerStream(), format='bgr', use_video_port=True)
+        camera.capture_sequence(
+            self.TriggerStream(),
+            format='bgr',
+            use_video_port=True
+        )
         print('Terminating camera processing...')
         processor.terminated = True
         processor.join()
@@ -237,64 +260,67 @@ class ImageCapture(threading.Thread):
                 yield processor.stream
                 processor.event.set()
 
+
 def main():
 
-	# Startup sequence
-	global camera
-	global processor
-	global imageCentreX
-	global imageCentreY
-        # Initialise GPIO
-        GPIO.setwarnings(False)
-        GPIO.setmode(GPIO.BCM)
+    # Startup sequence
+    global camera
+    global processor
+    global imageCentreX
+    global imageCentreY
+    global running
 
-        # Instantiate CORE / Chassis module and store in the launcher.
-        core_module = core.Core(GPIO)
+    # Initialise GPIO
+    GPIO.setwarnings(False)
+    GPIO.setmode(GPIO.BCM)
 
-	print('Setup camera')
-	camera = picamera.PiCamera()
-	camera.resolution = (imageWidth, imageHeight)
-	camera.framerate = frameRate
-	camera.awb_mode = 'off'
-	with open("rbgains.txt") as f:
-		content = f.readlines()
-	content = [x.strip() for x in content]
-	redgain = float(content[0][2:])
-	bluegain = float(content[1][2:])
-	camera.awb_gains = (redgain, bluegain)
+    # Instantiate CORE / Chassis module and store in the launcher.
+    core_module = core.Core(GPIO)
 
-	imageCentreX = imageWidth / 2.0
-	imageCentreY = imageHeight / 2.0
+    print('Setup camera')
+    camera = picamera.PiCamera()
+    camera.resolution = (imageWidth, imageHeight)
+    camera.framerate = frameRate
+    camera.awb_mode = 'off'
+    with open("rbgains.txt") as f:
+        content = f.readlines()
+    content = [x.strip() for x in content]
+    redgain = float(content[0][2:])
+    bluegain = float(content[1][2:])
+    camera.awb_gains = (redgain, bluegain)
 
-	print('Setup the stream processing thread')
-	processor = StreamProcessor(core_module)
+    imageCentreX = imageWidth / 2.0
+    imageCentreY = imageHeight / 2.0
 
-	print('Wait ...')
-	time.sleep(2)
-	captureThread = ImageCapture()
+    print('Setup the stream processing thread')
+    processor = StreamProcessor(core_module)
 
-	try:
-		print('Press CTRL+C to quit')
-		##    TB.MotorsOff()
-		##    TB.SetLedShowBattery(True)
-		# Loop indefinitely until we are no longer running
-		while running:
-			# Wait for the interval period
-			#
-			time.sleep(0.1)
-	except KeyboardInterrupt:
-		print("User shutdown\n")
-	except:
-		e = sys.exc_info()[0]
-		print
-		print(e)
+    print('Wait ...')
+    time.sleep(2)
+    captureThread = ImageCapture()
 
-	running = False
-	captureThread.join()
-	processor.terminated = True
-	processor.join()
-	del camera
-	print("Program terminated")
+    try:
+        print('Press CTRL+C to quit')
+        # TB.MotorsOff()
+        # TB.SetLedShowBattery(True)
+        # Loop indefinitely until we are no longer running
+        while running:
+            # Wait for the interval period
+            #
+            time.sleep(0.1)
+    except KeyboardInterrupt:
+        print("User shutdown\n")
+    except:
+        e = sys.exc_info()[0]
+        print
+        print(e)
+
+    running = False
+    captureThread.join()
+    processor.terminated = True
+    processor.join()
+    del camera
+    print("Program terminated")
 
 if __name__ == '__main__':
     main()
