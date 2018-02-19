@@ -30,7 +30,7 @@ global imageCentreY
 
 running = True
 debug = False
-colours = ['green', 'red', 'blue', 'yellow']
+colours = ['blue', 'red', 'green', 'yellow']
 colourindex = 0
 colour = colours[colourindex]
 
@@ -85,10 +85,10 @@ class StreamProcessor(threading.Thread):
         image = cv2.medianBlur(image, 5)
         if debug:
             cv2.imshow('blur', image)
-            cv2.waitKey()
-
+            cv2.waitKey
+     
         # Convert the image from 'BGR' to HSV colour space
-        image = cv2.cvtColor(image, cv2.COLOR_RGB2HSV)
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
         # if debug:
         #    cv2.imshow('cvtColour', image)
         #    cv2.waitKey(0)
@@ -96,27 +96,36 @@ class StreamProcessor(threading.Thread):
         if colour == "red":
             imrange = cv2.inRange(
                 image,
-                numpy.array((113, 96, 64)),
-                numpy.array((125, 255, 255))
-            )
-        elif colour == "green":
-            imrange = cv2.inRange(
-                image,
-                numpy.array((50, 96, 64)),
-                numpy.array((85, 255, 255))
-            )
-        elif colour == 'blue':
-            imrange = cv2.inRange(
-                image,
-                numpy.array((0, 64, 64)),
-                numpy.array((15, 255, 255))
+                #numpy.array((113, 96, 64)),
+                #numpy.array((125, 255, 255))
+                numpy.array((160,100,50)),
+                numpy.array((180,255,255))
             )
         elif colour == 'yellow':
             imrange = cv2.inRange(
                 image,
-                numpy.array((90, 64, 64)),
-                numpy.array((110, 255, 255))
+                #numpy.array((15, 64, 64)),
+                #numpy.array((35, 255, 255))
+                numpy.array((20,100,75)),
+                numpy.array((40,255,255))
+            )            
+        elif colour == "green":
+            imrange = cv2.inRange(
+                image,
+                #numpy.array((50, 96, 64)),
+                #numpy.array((85, 255, 255))
+                numpy.array((50, 100, 50)),
+                numpy.array((80, 255, 255))
             )
+        elif colour == 'blue':
+            imrange = cv2.inRange(
+                image,
+                #numpy.array((0, 64, 64)),
+                #numpy.array((15, 255, 255))
+                numpy.array((90, 64, 64)),
+                numpy.array((130, 255, 255))
+            )
+
 
         # I used the following code to find
         # the approximate 'hue' of the ball in
