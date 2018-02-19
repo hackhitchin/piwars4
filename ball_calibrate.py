@@ -164,7 +164,7 @@ def main():
          print upper_bounds
       elif (cmd == "r"):    
          showme = "raw"
-      elif (cmd == "r"):    
+      elif (cmd == "m"):    
          showme = "masked"         
 
       captureArray = PiRGBArray(picam)
