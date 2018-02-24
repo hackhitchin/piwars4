@@ -285,6 +285,7 @@ def main():
 
     # Instantiate CORE / Chassis module and store in the launcher.
     core_module = core.Core(GPIO)
+    core_module.enable_motors(True)
 
     print('Setup camera')
     camera = picamera.PiCamera()
@@ -324,6 +325,7 @@ def main():
         print
         print(e)
 
+    core_module.enable_motors(False)
     running = False
     captureThread.join()
     processor.terminated = True
