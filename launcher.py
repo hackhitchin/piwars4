@@ -10,6 +10,8 @@ import RPi.GPIO as GPIO
 import core
 import rc
 
+import VL53L0X
+
 from enum import Enum
 
 try:
@@ -44,7 +46,7 @@ class launcher:
         self.GPIO.setmode(self.GPIO.BCM)
 
         # Instantiate CORE / Chassis module and store in the launcher.
-        self.core = core.Core(self.GPIO)
+        self.core = core.Core(self.GPIO, VL53L0X.tof_lib)
 
         self.challenge = None
         self.challenge_thread = None
@@ -64,11 +66,10 @@ class launcher:
         self.current_mode = Mode.MODE_NONE
         self.menu_mode = Mode.MODE_RC
 
-        # Create oled object, nominating the correct I2C bus, default address
+        # Create oled object
         # Note: Set to None if you need to disable screen
-        self.i2cbus = smbus.SMBus(1)
         try:
-            self.oled = ssd1306(self.i2cbus)
+            self.oled = ssd1306(VL53L0X.i2cbus)
         except:
             self.oled = None
 
@@ -182,7 +183,7 @@ class launcher:
             # Display Bot name and header information
             self.oled.canvas.text(
                 (10, header_y),
-                'TITO 2: ' + current_mode_name,
+                'TITO 3: ' + current_mode_name,
                 fill=1)
             # Line underneath header
             self.oled.canvas.line(

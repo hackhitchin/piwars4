@@ -18,8 +18,6 @@ import RPi.GPIO as GPIO
 print('Libraries loaded')
 
 # Global values
-global running
-# global TB
 global camera
 global processor
 global debug
@@ -28,7 +26,6 @@ global colourindex
 global imageCentreX
 global imageCentreY
 
-running = True
 debug = False
 colours = ['blue', 'red', 'green', 'yellow']
 colourindex = 0
@@ -44,7 +41,7 @@ autoMaxPower = 1.0  # Maximum output in automatic mode
 autoMinPower = 0.2  # Minimum output in automatic mode
 autoMinArea = 10  # Smallest target to move towards
 autoMaxArea = 10000  # Largest target to move towards
-autoFullSpeedArea = 300  # Target size at which we use the maximum allowed output
+autoFullSpeedArea = 300  # Max target size
 
 
 # Image stream processing thread
@@ -68,7 +65,8 @@ class StreamProcessor(threading.Thread):
                 try:
                     # Read the image and do some processing on it
                     self.stream.seek(0)
-                    self.ProcessImage(self.stream.array, colour)
+                    if self.ProcessImage(self.stream.array, colour):
+                        self.terminated = True
                 finally:
                     # Reset the stream and event
                     self.stream.seek(0)
@@ -180,7 +178,8 @@ class StreamProcessor(threading.Thread):
         else:
             ball = None
         # Set drives or report ball status
-        self.SetSpeedFromBall(ball)
+        finished = self.SetSpeedFromBall(ball)
+        return finished
 
     # Set the motor speed from the ball position
     def SetSpeedFromBall(self, ball):
@@ -188,9 +187,10 @@ class StreamProcessor(threading.Thread):
         global colour
         global colours
         global colourindex
-        global running
         global imageCentreX
         global imageCentreY
+
+        finished = false
 
         driveLeft = 0.0
         driveRight = 0.0
@@ -206,7 +206,7 @@ class StreamProcessor(threading.Thread):
                 colourindex = colourindex + 1
                 if (colourindex >= len(colours)):
                     print('Donezo!')
-                    running = False
+                    finished = True
                 else:
                     colour = colours[colourindex]
                     print('Now looking for %s ball' % (colour))
@@ -235,9 +235,8 @@ class StreamProcessor(threading.Thread):
         print('%.2f, %.2f' % (driveLeft, driveRight))
         self.core_module.throttle(driveLeft, driveRight)
 
+        return finished
 
-# SetMotor1(driveLeft)
-# SetMotor2(driveRight)
 
 # Image capture thread
 class ImageCapture(threading.Thread):
@@ -270,14 +269,119 @@ class ImageCapture(threading.Thread):
                 processor.event.set()
 
 
+class Rainbow:
+    def __init__(self, core_module, oled):
+        """Class Constructor"""
+        self.killed = False
+        self.core_module = core_module
+        self.ticks = 0
+        self.oled = oled
+
+    def show_motor_speeds(self, left_motor, right_motor):
+        """ Show motor/aux config on OLED display """
+        if self.oled is not None:
+            # Format the speed to 2dp
+            message = "[L: %0.2f] [R: %0.2f]" % (left_motor, right_motor)
+
+            self.oled.cls()  # Clear Screen
+            self.oled.canvas.text((10, 10), message, fill=1)
+            # Now show the mesasge on the screen
+            self.oled.display()
+
+    def show_state(self):
+        """ Show motor/aux config on OLED display """
+        if self.oled is not None:
+            # Format the speed to 2dp
+            if self.core_module.motors_enabled:
+                message = "Rainbow: %0.2f" % (self.core_module.speed_factor)
+            else:
+                message = "Rainbow: NEUTRAL"
+
+            self.oled.cls()  # Clear Screen
+            self.oled.canvas.text((10, 10), message, fill=1)
+            # Now show the mesasge on the screen
+            self.oled.display()
+
+    def stop(self):
+        """Simple method to stop the RC loop"""
+        self.killed = True
+
+    def mixer(self, yaw, throttle, max_power=100):
+        left = throttle + yaw
+        right = throttle - yaw
+        scale = float(max_power) / max(1, abs(left), abs(right))
+        return int(left * scale), int(right * scale)
+
+    def run(self):
+        """ Main Challenge method. Has to exist and is the
+            start point for the threaded challenge. """
+        global camera
+        global processor
+        global imageCentreX
+        global imageCentreY
+
+        # Limit motor speeds in AutoMode
+        self.core_module.decrease_speed_factor()  # 90%
+        self.core_module.decrease_speed_factor()  # 80%
+        self.core_module.decrease_speed_factor()  # 70%
+        self.core_module.decrease_speed_factor()  # 60%
+        self.core_module.enable_motors(True)
+
+        # Setup the camera
+        print('Setup camera')
+        camera = picamera.PiCamera()
+        camera.resolution = (imageWidth, imageHeight)
+        camera.framerate = frameRate
+        camera.awb_mode = 'off'
+
+        # Load the exposure calibration
+        try:
+            with open("rbgains.txt") as f:
+                content = f.readlines()
+        except:
+            # Failed to read the file, use sensible defaults
+            content = "R: 1.30\nB: 2.40\n"
+
+        content = [x.strip() for x in content]
+        redgain = float(content[0][2:])
+        bluegain = float(content[1][2:])
+        camera.awb_gains = (redgain, bluegain)
+
+        imageCentreX = imageWidth / 2.0
+        imageCentreY = imageHeight / 2.0
+
+        # Create a stream processor instance
+        processor = StreamProcessor(self.core_module)
+
+        # Wait a couple of seconds...lets the camera start and expose
+        time.sleep(2)
+        captureThread = ImageCapture()
+
+        try:
+            print('Press CTRL+C to quit')
+            # Loop indefinitely until we are no longer running
+            while not self.killed:
+                # Wait for the interval period
+                time.sleep(0.1)
+        except KeyboardInterrupt:
+            print("User shutdown\n")
+        except:
+            e = sys.exc_info()[0]
+            print
+            print(e)
+
+        self.core_module.enable_motors(False)
+        self.killed = True
+        captureThread.join()
+        processor.terminated = True
+        processor.join()
+        del camera
+        print("Program terminated")
+
+
 def main():
 
     # Startup sequence
-    global camera
-    global processor
-    global imageCentreX
-    global imageCentreY
-    global running
 
     # Initialise GPIO
     GPIO.setwarnings(False)
@@ -285,61 +389,8 @@ def main():
 
     # Instantiate CORE / Chassis module and store in the launcher.
     core_module = core.Core(GPIO)
-    # Limit motor speeds in AutoMode
-    core_module.decrease_speed_factor()  # 90%
-    core_module.decrease_speed_factor()  # 80%
-    core_module.decrease_speed_factor()  # 70%
-    core_module.decrease_speed_factor()  # 60%
-    core_module.enable_motors(True)
-
-    # Setup the camera
-    print('Setup camera')
-    camera = picamera.PiCamera()
-    camera.resolution = (imageWidth, imageHeight)
-    camera.framerate = frameRate
-    camera.awb_mode = 'off'
-
-    # Load the exposure calibration
-    with open("rbgains.txt") as f:
-        content = f.readlines()
-    content = [x.strip() for x in content]
-    redgain = float(content[0][2:])
-    bluegain = float(content[1][2:])
-    camera.awb_gains = (redgain, bluegain)
-
-    imageCentreX = imageWidth / 2.0
-    imageCentreY = imageHeight / 2.0
-
-    print('Setup the stream processing thread')
-    processor = StreamProcessor(core_module)
-
-    print('Wait ...')
-    time.sleep(2)
-    captureThread = ImageCapture()
-
-    try:
-        print('Press CTRL+C to quit')
-        # TB.MotorsOff()
-        # TB.SetLedShowBattery(True)
-        # Loop indefinitely until we are no longer running
-        while running:
-            # Wait for the interval period
-            #
-            time.sleep(0.1)
-    except KeyboardInterrupt:
-        print("User shutdown\n")
-    except:
-        e = sys.exc_info()[0]
-        print
-        print(e)
-
-    core_module.enable_motors(False)
-    running = False
-    captureThread.join()
-    processor.terminated = True
-    processor.join()
-    del camera
-    print("Program terminated")
+    rb = Rainbow(core_module, None)
+    rb.Run()
 
 if __name__ == '__main__':
     main()

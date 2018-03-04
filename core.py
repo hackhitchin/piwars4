@@ -1,5 +1,7 @@
 from __future__ import division
 import time
+import i2c_lidar
+from enum import Enum
 
 MOTOR_LEFT_PWM = 17
 MOTOR_LEFT_A = 22
@@ -11,12 +13,20 @@ MOTOR_RIGHT_B = 24
 
 MAX_SPEED = 90
 
+
+class I2C_Lidar(Enum):
+    # Enum listing each servo that we can control
+    LIDAR_FRONT = 10
+    # LIDAR_LEFT = 9
+    # LIDAR_RIGHT = 11
+
+
 class Core():
     """ Instantiate a 4WD drivetrain, utilising 2x H Bridges,
         controlled using a 2 axis (throttle, steering)
         system """
 
-    def __init__(self, GPIO):
+    def __init__(self, GPIO, tof_lib):
         """ Constructor """
 
         # Motors will be disabled by default.
@@ -39,6 +49,35 @@ class Core():
         # Speed Multiplier 1.0 == max
         self.speed_factor = 1.0
 
+        # Create a list of I2C time of flight lidar sensors
+        # Note: we need to dynamically alter each
+        # tof lidar sensors i2c address on boot
+        self.lidars = dict()
+
+        # FIRST: we must turn off all of the i2c
+        # devices that have the same initial address.
+        for pin in I2C_Lidar:
+            i2c_lidar.xshut(int(pin.value))
+
+        # Now loop again and change each ones address individually.
+        loop = 0
+        for pin in I2C_Lidar:
+            print(str(pin))
+            self.lidars[str(pin)] = i2c_lidar.create(
+                int(pin.value),
+                tof_lib,
+                0x2a + loop
+            )
+            loop += 1
+
+        # DEBUG testing
+        time.sleep(1.0)
+        # start_ranging
+        distance_front = self.read_sensor(str(I2C_Lidar.LIDAR_FRONT))
+        print('######')
+        print(distance_front)
+        print('######')
+
     def increase_speed_factor(self):
         self.speed_factor += 0.1
         # Clamp speed factor to [0.1, 1.0]
@@ -58,6 +97,11 @@ class Core():
     def cleanup(self):
         self.motor['left'].stop()  # stop the PWM output
         self.motor['right'].stop()  # stop the PWM output
+
+        # Turn off i2c lidar tof sensors
+        for pin in I2C_Lidar:
+            i2c_lidar.turnoff(int(pin.value))
+
         self.GPIO.cleanup()  # clean up GPIO
 
     def setup_motor(self, pwm_pin, a, b, frequency=10000):
@@ -160,6 +204,17 @@ class Core():
                 speed=right_speed
             )
 
+    def read_sensor(self, sensor):
+        """ Read an i2c lidar time of flight
+        sensor value and return it. """
+        try:
+            sensor_value = self.lidars[sensor].get_distance()
+        except KeyError:
+            print("Key Error")
+            print(sensor)
+            sensor_value = -1
+        return sensor_value
+
 
 def main():
     """ Simple method used to test motor controller. """
@@ -182,6 +237,7 @@ def main():
     # Stop PWM's and clear up GPIO
     core.cleanup()
     print("Finished")
+
 
 if __name__ == '__main__':
     main()

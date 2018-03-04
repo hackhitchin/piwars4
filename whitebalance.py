@@ -5,12 +5,12 @@ import time
 import cv2
 import numpy as np
 
- 
+
 # initialize the camera and grab a reference to the raw camera capture
 camera = PiCamera()
 camera.resolution = (640, 480)
-#camera.hflip = True
-#camera.vflip = True
+# camera.hflip = True
+# camera.vflip = True
 
 camera.awb_mode = 'off'
 # Start off with low gains
