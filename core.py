@@ -1,7 +1,8 @@
 from __future__ import division
 import time
-import i2c_lidar
+# import i2c_lidar
 from enum import Enum
+import VL53L0X
 
 MOTOR_LEFT_PWM = 17
 MOTOR_LEFT_A = 22
@@ -17,8 +18,8 @@ MAX_SPEED = 90
 class I2C_Lidar(Enum):
     # Enum listing each servo that we can control
     LIDAR_FRONT = 10
-    # LIDAR_LEFT = 9
-    # LIDAR_RIGHT = 11
+    LIDAR_LEFT = 9
+    LIDAR_RIGHT = 11
 
 
 class Core():
@@ -26,12 +27,13 @@ class Core():
         controlled using a 2 axis (throttle, steering)
         system """
 
-    def __init__(self, GPIO, tof_lib):
+    def __init__(self, GPIO):
         """ Constructor """
 
         # Motors will be disabled by default.
         self.motors_enabled = False
         self.GPIO = GPIO
+        self.DEBUG = True
 
         # Configure motor pins with GPIO
         self.motor = dict()
@@ -57,26 +59,53 @@ class Core():
         # FIRST: we must turn off all of the i2c
         # devices that have the same initial address.
         for pin in I2C_Lidar:
-            i2c_lidar.xshut(int(pin.value))
+            gpio_pin = int(pin.value)
+            self.GPIO.setup(gpio_pin, self.GPIO.OUT)
+            self.GPIO.output(gpio_pin, GPIO.HIGH)
+            print("{} pin is ON".format(gpio_pin))
+        # Wait half second to ensure devices are OFF
+        time.sleep(0.5)
 
         # Now loop again and change each ones address individually.
         loop = 0
         for pin in I2C_Lidar:
-            print(str(pin))
-            self.lidars[str(pin)] = i2c_lidar.create(
-                int(pin.value),
-                tof_lib,
-                0x2a + loop
-            )
+            gpio_pin = int(pin.value)
+            # Wait for chip to wake
+
+            # New method to create multiple I2C lidar devices.
+            new_address = 0x2B + loop
+            lidar_dev = dict()
+            lidar_dev['gpio_pin'] = gpio_pin
+            lidar_dev['i2c_address'] = new_address
+            lidar_dev['device'] = VL53L0X.VL53L0X(address=new_address)
+
+            # Set the pin low to turn sensor on
+            self.GPIO.output(gpio_pin, self.GPIO.LOW)
+            print("{} pin is OFF".format(gpio_pin))
+            # Wait half second to ensure devices are ON
+            time.sleep(0.5)
+
+            lidar_dev['device'].start_ranging(VL53L0X.VL53L0X_LONG_RANGE_MODE)
+
+            # Assign the newly created dictionary
+            # into the dictionary of lidar devices.
+            self.lidars[str(pin)] = lidar_dev
             loop += 1
 
         # DEBUG testing
-        time.sleep(1.0)
-        # start_ranging
-        distance_front = self.read_sensor(str(I2C_Lidar.LIDAR_FRONT))
-        print('######')
-        print(distance_front)
-        print('######')
+        if self.DEBUG:
+            time.sleep(1.0)
+            # start_ranging
+            for pin in I2C_Lidar:
+                try:
+                    lidar_dev = self.lidars[str(pin)]
+                    distance_front = lidar_dev['device'].get_distance()
+                except KeyError:
+                    distance_front = -1
+
+                print('### {} ###'.format(str(pin)))
+                print("{}mm".format(distance_front))
+                print('######')
 
     def increase_speed_factor(self):
         self.speed_factor += 0.1
@@ -99,8 +128,14 @@ class Core():
         self.motor['right'].stop()  # stop the PWM output
 
         # Turn off i2c lidar tof sensors
+        print("Turning off I2C TOF sensors")
         for pin in I2C_Lidar:
-            i2c_lidar.turnoff(int(pin.value))
+            try:
+                lidar_dev = self.lidars[str(pin)]
+                lidar_dev['device'].stop_ranging()
+                self.GPIO.output(lidar_dev['gpio_pin'], self.GPIO.HIGH)
+            except KeyError:
+                pass
 
         self.GPIO.cleanup()  # clean up GPIO
 
@@ -203,17 +238,6 @@ class Core():
                 MOTOR_RIGHT_B,
                 speed=right_speed
             )
-
-    def read_sensor(self, sensor):
-        """ Read an i2c lidar time of flight
-        sensor value and return it. """
-        try:
-            sensor_value = self.lidars[sensor].get_distance()
-        except KeyError:
-            print("Key Error")
-            print(sensor)
-            sensor_value = -1
-        return sensor_value
 
 
 def main():

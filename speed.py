@@ -10,9 +10,10 @@ doesn't compile, run or do anything sensible."""
     the minimal maze, though it sometimes bumps walls """
 
 
-class WallFollower:
-    def __init__(self, core_module):
+class Speed:
+    def __init__(self, core_module, oled):
         """Class Constructor"""
+        self.oled = oled
         self.killed = False
         self.core = core_module
         self.ticks = 0
@@ -20,12 +21,6 @@ class WallFollower:
         self.time_limit = 16  # How many seconds to run for
         self.follow_left = True
         self.switched_wall = False
-
-# known good for straight line, underdamped
-#        self.pidc = PID.PID(0.5, 0.0, 0.2)
-
-# test for maze:
-#        self.pidc = PID.PID(0.5, 0.0, 0.1)
         self.pidc = PID.PID(0.5, 0.0, 0.1)
 
     def stop(self):
@@ -109,7 +104,10 @@ class WallFollower:
     def run(self):
         print("Start run")
         """Read a sensor and set motor speeds accordingly"""
-        self.core.enable_motors(True)
+
+        # Sleep until we enable motors
+        while not self.killed and not self.core.motors_enabled:
+            time.sleep(0.5)
 
         tick_limit = self.time_limit / self.tick_time
 

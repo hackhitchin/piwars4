@@ -10,7 +10,7 @@ import RPi.GPIO as GPIO
 import core
 import rc
 
-import VL53L0X
+# import VL53L0X
 
 from enum import Enum
 
@@ -19,7 +19,7 @@ try:
 except ImportError:
     from ordereddict import OrderedDict
 
-import smbus
+# import smbus
 from lib_oled96 import ssd1306
 from approxeng.input.selectbinder import ControllerResource
 
@@ -41,12 +41,12 @@ class launcher:
         self.controller = None
 
         # Initialise GPIO
-        GPIO.setwarnings(False)
         self.GPIO = GPIO
+        self.GPIO.setwarnings(False)
         self.GPIO.setmode(self.GPIO.BCM)
 
         # Instantiate CORE / Chassis module and store in the launcher.
-        self.core = core.Core(self.GPIO, VL53L0X.tof_lib)
+        self.core = core.Core(self.GPIO)
 
         self.challenge = None
         self.challenge_thread = None
@@ -61,7 +61,7 @@ class launcher:
             (Mode.MODE_POWER, "Power Off"),
             (Mode.MODE_RC, "RC")
             # (Mode.MODE_MAZE, "Maze"),
-            #(Mode.MODE_SPEED, "Speed")
+            (Mode.MODE_SPEED, "Speed")
         ))
         self.current_mode = Mode.MODE_NONE
         self.menu_mode = Mode.MODE_RC
@@ -69,7 +69,7 @@ class launcher:
         # Create oled object
         # Note: Set to None if you need to disable screen
         try:
-            self.oled = ssd1306(VL53L0X.i2cbus)
+            self.oled = ssd1306(self.core.VL53L0X.i2cbus)
         except:
             self.oled = None
 
@@ -146,6 +146,7 @@ class launcher:
             self.start_rc_mode()
         elif self.menu_mode == Mode.MODE_SPEED:
             logging.info("Speed Mode")
+            self.start_speed_mode()
         elif self.menu_mode == Mode.MODE_MAZE:
             logging.info("Maze Mode")
 
@@ -241,6 +242,25 @@ class launcher:
         # Call system OS to shut down the Pi
         logging.info("Shutting Down Pi")
         os.system("sudo shutdown -h now")
+        
+    def start_speed_mode():
+        # Kill any previous Challenge / RC mode
+        self.stop_threads()
+
+        # Set Wiimote LED to RC Mode index
+        self.current_mode = Mode.MODE_SPEED
+
+        # Inform user we are about to start RC mode
+        logging.info("Entering into SPEED Mode")
+        self.challenge = speed.speed(self.core, self.oled)
+
+        # Create and start a new thread
+        # running the remote control script
+        logging.info("Starting SPEED Thread")
+        self.challenge_thread = threading.Thread(
+            target=self.challenge.run)
+        self.challenge_thread.start()
+        logging.info("SPEED Thread Running")
 
     def start_rc_mode(self):
         # Kill any previous Challenge / RC mode
@@ -367,9 +387,14 @@ if __name__ == "__main__":
         launcher.run()
     except (Exception, KeyboardInterrupt) as e:
         # Stop any active threads before leaving
+        print("Stopping")
         launcher.controller = None
         launcher.stop_threads()  # This will set neutral for us.
-        print("Stopping")
+        print("Clearing up")
+        launcher.core.cleanup()
+        launcher.GPIO.cleanup()
+
+
         print(str(e))
         # Show state on OLED display
         launcher.show_message('Exited Python Code')
