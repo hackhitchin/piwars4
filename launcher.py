@@ -9,6 +9,7 @@ import RPi.GPIO as GPIO
 
 import core
 import rc
+import speed
 
 # import VL53L0X
 
@@ -59,7 +60,7 @@ class launcher:
         # Mode/Challenge Dictionary
         self.menu_list = OrderedDict((
             (Mode.MODE_POWER, "Power Off"),
-            (Mode.MODE_RC, "RC")
+            (Mode.MODE_RC, "RC"),
             # (Mode.MODE_MAZE, "Maze"),
             (Mode.MODE_SPEED, "Speed")
         ))
@@ -242,8 +243,8 @@ class launcher:
         # Call system OS to shut down the Pi
         logging.info("Shutting Down Pi")
         os.system("sudo shutdown -h now")
-        
-    def start_speed_mode():
+
+    def start_speed_mode(self):
         # Kill any previous Challenge / RC mode
         self.stop_threads()
 
@@ -252,7 +253,7 @@ class launcher:
 
         # Inform user we are about to start RC mode
         logging.info("Entering into SPEED Mode")
-        self.challenge = speed.speed(self.core, self.oled)
+        self.challenge = speed.Speed(self.core, self.oled)
 
         # Create and start a new thread
         # running the remote control script
@@ -331,6 +332,7 @@ class launcher:
                             if ('dright' in self.controller.presses and
                                self.challenge is None):
                                 # Only works when NOT in a challenge
+                                print("Menu Item Pressed")
                                 self.menu_item_pressed()
                                 self.show_menu()
 
@@ -355,6 +357,10 @@ class launcher:
                                 # allow motors to move freely.
                                 # NOTE: will ALWAYS work
                                 self.core.enable_motors(not self.core.motors_enabled)
+                                if self.core.motors_enabled:
+                                    print("Enabled")
+                                else:
+                                    print("Neutral")
 
                             # Increase or Decrease motor speed factor
                             if 'r1' in self.controller.presses:

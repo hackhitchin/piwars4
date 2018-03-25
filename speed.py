@@ -1,178 +1,177 @@
-# Import triangula module to interact with SixAxis
-import core
+from core import I2C_Lidar
 import time
 import PID
 
-""" 10-2-2017: This code is completely untested; don't be surprised when it
-doesn't compile, run or do anything sensible."""
-
-""" 15-3-2017: This code makes a decent stab at driving around
-    the minimal maze, though it sometimes bumps walls """
-
-
 class Speed:
+
     def __init__(self, core_module, oled):
         """Class Constructor"""
         self.oled = oled
         self.killed = False
         self.core = core_module
-        self.ticks = 0
-        self.tick_time = 0.1  # How many seconds per control loop
-        self.time_limit = 16  # How many seconds to run for
-        self.follow_left = True
-        self.switched_wall = False
+        self.time_limit = 16  # How many seconds before auto cutoff
         self.pidc = PID.PID(0.5, 0.0, 0.1)
+        self.control_mode = "LINEAR"
+        self.deadband = 20  # size of deadband in mm
 
     def stop(self):
         """Simple method to stop the RC loop"""
         self.killed = True
 
-    def set_control_mode(self, mode):
-        self.control_mode = mode
+    def decide_speeds_linear(self, distance_offset):
+        """ Use the linear method to decide motor speeds. """
+        speed_max = 1.0
+        arbitrary_offset = 100
 
-    def decide_speeds(self, sensorvalue, ignore_d):
+        if (distance_offset <= self.deadband):
+            # Within reasonable tolerance of centre, don't bother steering
+            leftspeed = speed_max
+            rightspeed = speed_max
+        else:
+            # Clamp offset to 100mm (arbitrary value for now)
+            if distance_offset > arbitrary_offset:
+                distance_offset = arbitrary_offset
+            elif distance_offset < -arbitrary_offset:
+                distance_offset = -arbitrary_offset
+
+            # Calculate how much to reduce speed by on ONE MOTOR ONLY
+            speed_drop = (abs(distance_offset) / float(arbitrary_offset))
+            # Reduce speed drop by factor to turning sensitivity/affect.
+            speed_drop = speed_drop * 0.5
+
+            if distance_offset > 0:
+                leftspeed = speed_max - speed_drop
+                rightspeed = speed_max
+            elif distance_offset < 0:
+                leftspeed = speed_max
+                rightspeed = speed_max - speed_drop
+
+        return leftspeed, rightspeed
+
+    def decide_speeds_pid(self, distance_offset):
+        """ Use the pid  method to decide motor speeds. """
+        # speed_mid = -0.14
+        # speed_range = -0.2
+
+        # distance_midpoint = 200.0
+        # distance_range = 150.0
+        # error = (sensorvalue - distance_midpoint)
+        # self.pidc.update(error, ignore_d)
+
+        # deviation = self.pidc.output / distance_range
+        # c_deviation = max(-1.0, min(1.0, deviation))
+
+        # print("PID out: %f" % deviation)
+
+        # if self.follow_left:
+        #     leftspeed = (speed_mid - (c_deviation * speed_range))
+        #     rightspeed = (speed_mid + (c_deviation * speed_range))
+        # else:
+        #     leftspeed = (speed_mid + (c_deviation * speed_range))
+        #     rightspeed = (speed_mid - (c_deviation * speed_range))
+        leftspeed = 0
+        rightspeed = 0
+        return leftspeed, rightspeed
+
+    def decide_speeds(self, distance_offset):
         """ Set up return values at the start"""
         leftspeed = 0
         rightspeed = 0
 
         if self.control_mode == "LINEAR":
-            speed_mid = -0.2
-            speed_range = 0.06
-            """ Deviation is distance from intended midpoint.
-                Right is positive, left is negative
-                Rate is how much to add/subtract from motor speed """
-
-            distance_midpoint = 200.0  # mm
-            distance_range = 100.0  # mm
-            deviation = (sensorvalue - distance_midpoint) / distance_range
-
-            # Gate value to [-1,1] for the sake of not driving backwards
-            if (deviation < -1):
-                deviation = -1
-            if (deviation > 1):
-                deviation = 1
-            if self.follow_left:
-                leftspeed = (speed_mid - (deviation * speed_range))
-                rightspeed = (speed_mid + (deviation * speed_range))
-            else:
-                leftspeed = (speed_mid + (deviation * speed_range))
-                rightspeed = (speed_mid - (deviation * speed_range))
-            return leftspeed, rightspeed
-        elif self.control_mode == "EXPO":
-            speed_mid = 0.05
-            speed_range = 0.05
-
-            distance_midpoint = 200.0  # mm
-            distance_range = 100.0  # mm
-            deviation = (sensorvalue - distance_midpoint) / distance_range
-
-            if (deviation < 0):
-                deviation = 0 - (deviation * deviation)
-            else:
-                deviation = deviation * deviation
-
-            leftspeed = (speed_mid - (deviation * speed_range))
-            rightspeed = (speed_mid + (deviation * speed_range))
-
+            leftspeed, rightspeed = self.decide_speeds_linear(
+                distance_offset
+            )
         elif self.control_mode == "PID":
-            speed_mid = -0.14
-            speed_range = -0.2
-
-            distance_midpoint = 200.0
-            distance_range = 150.0
-            error = (sensorvalue - distance_midpoint)
-            self.pidc.update(error, ignore_d)
-
-            deviation = self.pidc.output / distance_range
-            c_deviation = max(-1.0, min(1.0, deviation))
-
-            print("PID out: %f" % deviation)
-
-            if self.follow_left:
-                leftspeed = (speed_mid - (c_deviation * speed_range))
-                rightspeed = (speed_mid + (c_deviation * speed_range))
-            else:
-                leftspeed = (speed_mid + (c_deviation * speed_range))
-                rightspeed = (speed_mid - (c_deviation * speed_range))
-
-        else:
-            leftspeed = speed_mid
-            rightspeed = speed_mid
-
+            leftspeed, rightspeed = self.decide_speeds_pid(
+                distance_offset
+            )
         return leftspeed, rightspeed
 
+    def show_state(self):
+        """ Show motor/aux config on OLED display """
+        if self.oled is not None:
+            # Format the speed to 2dp
+            if self.core_module.motors_enabled:
+                message = "SPEED: %0.2f" % (self.core_module.speed_factor)
+            else:
+                message = "SPEED: NEUTRAL"
+
+            self.oled.cls()  # Clear Screen
+            self.oled.canvas.text((10, 10), message, fill=1)
+            # Now show the mesasge on the screen
+            self.oled.display()
+
     def run(self):
-        print("Start run")
         """Read a sensor and set motor speeds accordingly"""
 
-        # Sleep until we enable motors
+        # Wait (and do nothing) until we enable
+        # motors or kill the challenge thread.
+        print("Waiting for motor enable")
         while not self.killed and not self.core.motors_enabled:
             time.sleep(0.5)
 
-        tick_limit = self.time_limit / self.tick_time
+        # Stop processing if we have killed the thread
+        if self.killed:
+            return
 
-        self.set_control_mode("PID")
+        print("Starting speed run now...")
 
-        side_prox = 0
-        prev_prox = 100  # Make sure nothing bad happens on startup
+        # Reduce MAX speed to 80%, stops motor controller kicking off.
+        self.core.speed_factor = 0.8
 
-        while not self.killed and self.ticks < tick_limit and side_prox != -1:
-            prev_prox = side_prox
-            d_left = self.core.read_sensor(0)
-            d_front = self.core.read_sensor(1) - 150
-            d_right = self.core.read_sensor(2)
+        start_time = time.time()
+        time_delta = 0
 
-            # Which wall are we following?
-            if self.follow_left:
-                side_prox = d_left  # 0:Left, 2: right
-            else:
-                side_prox = d_right
-            front_prox = d_front
+        while not self.killed and time_delta < self.time_limit:
+            print("Reading LEFT")
+            try:
+                lidar_dev = self.core.lidars[
+                    str(I2C_Lidar.LIDAR_LEFT)
+                ]
+                distance_left = lidar_dev['device'].get_distance()
+            except KeyError:
+                distance_left = -1
+            print("Reading FRONT")
+            try:
+                lidar_dev = self.core.lidars[
+                    str(I2C_Lidar.LIDAR_FRONT)
+                ]
+                distance_front = lidar_dev['device'].get_distance()
+            except KeyError:
+                distance_front = -1
+            print("Reading RIGHT")
+            try:
+                lidar_dev = self.core.lidars[
+                    str(I2C_Lidar.LIDAR_RIGHT)
+                ]
+                distance_right = lidar_dev['device'].get_distance()
+            except KeyError:
+                distance_right = -1
 
-            # Have we fallen out of the end of the course?
-            if d_left > 400 and d_right > 400:
+            # Have we fallen out of the end of
+            # the course or nearing obstruction?
+            if ((distance_left > 400 and distance_right > 400) or
+               distance_front < 400):
+                print("Outside of speed run")
                 self.killed = True
                 break
 
-            print("Distance is %d" % (side_prox))
+            # Report offset from centre
+            distance_offset = distance_left - distance_right
+            print("Distance is %d" % (distance_offset))
 
-            ignore_d = False
-            # Have we crossed over the middle of the course?
-            if (side_prox > 350 and
-               (side_prox - 100 > prev_prox) and
-               self.switched_wall is False):
-                print("Distance above threshold, follow right")
-                self.follow_left = False
-                self.switched_wall = True
-                # Tell PID not to wig out too much
-                ignore_d = True
-            leftspeed = 0
-            rightspeed = 0
+            # Calculate motor speeds
+            leftspeed, rightspeed = self.decide_speeds(distance_offset)
 
-            leftspeed, rightspeed = self.decide_speeds(
-                min(side_prox, front_prox),
-                ignore_d
-            )
-
+            # Send speeds to motors
             self.core.throttle(leftspeed, rightspeed)
             print("Motors %f, %f" % (leftspeed, rightspeed))
 
-            self.ticks = self.ticks + 1
             time.sleep(0.1)
+            current_time = time.time()
+            time_delta = current_time - start_time
+            print("{}".format(time_delta))
 
-        print("Ticks %d" % self.ticks)
-
-        self.core.stop()
-
-
-if __name__ == "__main__":
-    core = core.Core()
-    follower = WallFollower(core)
-    try:
-        follower.run()
-    except (KeyboardInterrupt) as e:
-        # except (Exception, KeyboardInterrupt) as e:
-        # Stop any active threads before leaving
-        follower.stop()
-        core.stop()
-        print("Quitting")
+        # Turn motors off and set into neutral (stops the vehicle moving)
+        self.core.enable_motors(False)

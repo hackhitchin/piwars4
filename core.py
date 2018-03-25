@@ -33,7 +33,7 @@ class Core():
         # Motors will be disabled by default.
         self.motors_enabled = False
         self.GPIO = GPIO
-        self.DEBUG = True
+        self.DEBUG = False
 
         # Configure motor pins with GPIO
         self.motor = dict()
@@ -62,7 +62,7 @@ class Core():
             gpio_pin = int(pin.value)
             self.GPIO.setup(gpio_pin, self.GPIO.OUT)
             self.GPIO.output(gpio_pin, GPIO.HIGH)
-            print("{} pin is ON".format(gpio_pin))
+            # print("{} pin is ON".format(gpio_pin))
         # Wait half second to ensure devices are OFF
         time.sleep(0.5)
 
@@ -81,7 +81,7 @@ class Core():
 
             # Set the pin low to turn sensor on
             self.GPIO.output(gpio_pin, self.GPIO.LOW)
-            print("{} pin is OFF".format(gpio_pin))
+            # print("{} pin is OFF".format(gpio_pin))
             # Wait half second to ensure devices are ON
             time.sleep(0.5)
 
