@@ -42,12 +42,15 @@ class Speed:
             # Reduce speed drop by factor to turning sensitivity/affect.
             speed_drop = speed_drop * 0.5
 
-            if distance_offset > 0:
+            if distance_offset < 0:
                 leftspeed = speed_max - speed_drop
                 rightspeed = speed_max
-            elif distance_offset < 0:
+            elif distance_offset > 0:
                 leftspeed = speed_max
                 rightspeed = speed_max - speed_drop
+            else:
+                leftspeed = speed_max
+                rightspeed = speed_max
 
         return leftspeed, rightspeed
 
@@ -56,10 +59,7 @@ class Speed:
         # speed_mid = -0.14
         # speed_range = -0.2
 
-        # distance_midpoint = 200.0
-        # distance_range = 150.0
-        # error = (sensorvalue - distance_midpoint)
-        # self.pidc.update(error, ignore_d)
+        # self.pidc.update(distance_offset, ignore_d)
 
         # deviation = self.pidc.output / distance_range
         # c_deviation = max(-1.0, min(1.0, deviation))
