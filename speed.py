@@ -2,6 +2,7 @@ from core import I2C_Lidar
 import time
 import PID
 
+
 class Speed:
 
     def __init__(self, core_module, oled):
@@ -23,8 +24,9 @@ class Speed:
         speed_max = 1.0
         arbitrary_offset = 100
 
-        if (distance_offset <= self.deadband):
+        if (abs(distance_offset) <= self.deadband):
             # Within reasonable tolerance of centre, don't bother steering
+            print("Deadband")
             leftspeed = speed_max
             rightspeed = speed_max
         else:
@@ -36,6 +38,7 @@ class Speed:
 
             # Calculate how much to reduce speed by on ONE MOTOR ONLY
             speed_drop = (abs(distance_offset) / float(arbitrary_offset))
+            print("DropSpeed = {}".format(speed_drop))
             # Reduce speed drop by factor to turning sensitivity/affect.
             speed_drop = speed_drop * 0.5
 
@@ -175,3 +178,27 @@ class Speed:
 
         # Turn motors off and set into neutral (stops the vehicle moving)
         self.core.enable_motors(False)
+
+
+def main():
+    """ Method run when codule called separately. """
+    import RPi.GPIO as GPIO
+    import core
+
+    # Initialise GPIO
+    GPIO = GPIO
+    GPIO.setwarnings(False)
+    GPIO.setmode(GPIO.BCM)
+
+    # Instantiate CORE / Chassis module and store in the launcher.
+    core_module = core.Core(GPIO)
+
+    speed = Speed(core_module, None)
+
+    # Manually enable motors in this mode as controller not hooked up
+    core_module.enable_motors(True)
+    speed.run()
+
+
+if __name__ == '__main__':
+    main()
