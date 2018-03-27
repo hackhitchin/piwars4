@@ -70,8 +70,9 @@ class launcher:
         # Create oled object
         # Note: Set to None if you need to disable screen
         try:
-            self.oled = ssd1306(self.core.VL53L0X.i2cbus)
+            self.oled = ssd1306(self.core.i2cbus)
         except:
+            print("Failed to get OLED")
             self.oled = None
 
     def stop_threads(self):

@@ -92,8 +92,8 @@ class Speed:
         """ Show motor/aux config on OLED display """
         if self.oled is not None:
             # Format the speed to 2dp
-            if self.core_module.motors_enabled:
-                message = "SPEED: %0.2f" % (self.core_module.speed_factor)
+            if self.core.motors_enabled:
+                message = "SPEED: %0.2f" % (self.core.speed_factor)
             else:
                 message = "SPEED: NEUTRAL"
 
@@ -118,7 +118,7 @@ class Speed:
         print("Starting speed run now...")
 
         # Reduce MAX speed to 80%, stops motor controller kicking off.
-        self.core.speed_factor = 0.8
+        self.core.speed_factor = 0.5
 
         start_time = time.time()
         time_delta = 0

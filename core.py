@@ -30,6 +30,8 @@ class Core():
     def __init__(self, GPIO):
         """ Constructor """
 
+        self.i2cbus = VL53L0X.i2cbus
+
         # Motors will be disabled by default.
         self.motors_enabled = False
         self.GPIO = GPIO
