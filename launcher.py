@@ -357,7 +357,9 @@ class launcher:
                                 # Toggle motor enable/disable
                                 # allow motors to move freely.
                                 # NOTE: will ALWAYS work
-                                self.core.enable_motors(not self.core.motors_enabled)
+                                self.core.enable_motors(
+                                    not self.core.motors_enabled
+                                )
                                 if self.core.motors_enabled:
                                     print("Enabled")
                                 else:
@@ -373,6 +375,9 @@ class launcher:
                             if self.challenge:
                                 self.challenge.show_state()
 
+                        # Reset the Motors
+                        # (will test if needs to before it does it)
+                        self.core.reset_motors()
                         time.sleep(0.05)
 
             except IOError:

@@ -12,6 +12,11 @@ MOTOR_RIGHT_PWM = 18
 MOTOR_RIGHT_A = 23
 MOTOR_RIGHT_B = 24
 
+MOTOR_LEFT_ENA = 36
+MOTOR_LEFT_ENB = 37
+MOTOR_RIGHT_ENA = 38
+MOTOR_RIGHT_ENB = 40
+
 MAX_SPEED = 90
 
 
@@ -36,6 +41,12 @@ class Core():
         self.motors_enabled = False
         self.GPIO = GPIO
         self.DEBUG = False
+
+        # Configure GPIO pins to detect motor controller errors
+        GPIO.setup(MOTOR_LEFT_ENA, GPIO.IN)
+        GPIO.setup(MOTOR_LEFT_ENB, GPIO.IN)
+        GPIO.setup(MOTOR_RIGHT_ENA, GPIO.IN)
+        GPIO.setup(MOTOR_RIGHT_ENB, GPIO.IN)
 
         # Configure motor pins with GPIO
         self.motor = dict()
@@ -108,6 +119,18 @@ class Core():
                 print('### {} ###'.format(str(pin)))
                 print("{}mm".format(distance_front))
                 print('######')
+
+    def is_motor_working(self, motor_label):
+        """ Return motor status """
+        en_a = 0
+        en_b = 0
+        if motor_label == "left":
+            en_a = self.GPIO.input(MOTOR_LEFT_ENA)
+            en_b = self.GPIO.input(MOTOR_LEFT_ENB)
+        elif motor_label == "right":
+            en_a = self.GPIO.input(MOTOR_RIGHT_ENA)
+            en_b = self.GPIO.input(MOTOR_RIGHT_ENB)
+        return en_a, en_b
 
     def increase_speed_factor(self):
         self.speed_factor += 0.1
@@ -184,6 +207,45 @@ class Core():
         # Set motors in neutral if disabling.
         if not enable:
             self.set_neutral()
+
+    def reset_motors(self):
+        """ Reset BOTH motor inouts (keeping PWM values) """
+        if self.motors_enabled and (not self.is_motor_working('left') or not self.is_motor_working('right')):
+            self.reset_motor(
+                self.motor['left'],
+                MOTOR_LEFT_A,
+                MOTOR_LEFT_B
+            )
+            self.reset_motor(
+                self.motor['right'],
+                MOTOR_RIGHT_A,
+                MOTOR_RIGHT_B
+            )
+
+    def reset_motor(self, motor, a, b):
+        """ Reset motor inouts (keeping PWM values) """
+
+        # Read current motor directions
+        in_a = self.GPIO.input(a)
+        in_b = self.GPIO.input(b)
+
+        forward = True
+        if in_a and not in_b:
+            forward = True
+        elif not in_a and in_b:
+            forward = False
+
+        # Set BOTH mot A and B inputs false
+        self.GPIO.output(a, 0)
+        self.GPIO.output(b, 0)
+
+        # Now reset motor directional pins
+        if forward:
+            self.GPIO.output(a, 1)
+            self.GPIO.output(b, 0)
+        else:
+            self.GPIO.output(a, 0)
+            self.GPIO.output(b, 1)
 
     def set_motor_speed(self, motor, a, b, speed=0.0):
         """ Change a motors speed.
