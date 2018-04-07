@@ -36,6 +36,7 @@ class Core():
         """ Constructor """
 
         self.i2cbus = VL53L0X.i2cbus
+        self.resetting_motors = False
 
         # Motors will be disabled by default.
         self.motors_enabled = False
@@ -47,6 +48,12 @@ class Core():
         GPIO.setup(MOTOR_LEFT_ENB, GPIO.IN)
         GPIO.setup(MOTOR_RIGHT_ENA, GPIO.IN)
         GPIO.setup(MOTOR_RIGHT_ENB, GPIO.IN)
+
+        # Add the event callback detection for when the motors trip out.
+        GPIO.add_event_detect(MOTOR_LEFT_ENA, GPIO.RISING, self.event_callback)
+        GPIO.add_event_detect(MOTOR_LEFT_ENB, GPIO.RISING, self.event_callback)
+        GPIO.add_event_detect(MOTOR_RIGHT_ENA, GPIO.RISING, self.event_callback)
+        GPIO.add_event_detect(MOTOR_RIGHT_ENB, GPIO.RISING, self.event_callback)
 
         # Configure motor pins with GPIO
         self.motor = dict()
@@ -120,18 +127,6 @@ class Core():
                 print("{}mm".format(distance_front))
                 print('######')
 
-    def is_motor_working(self, motor_label):
-        """ Return motor status """
-        en_a = 0
-        en_b = 0
-        if motor_label == "left":
-            en_a = self.GPIO.input(MOTOR_LEFT_ENA)
-            en_b = self.GPIO.input(MOTOR_LEFT_ENB)
-        elif motor_label == "right":
-            en_a = self.GPIO.input(MOTOR_RIGHT_ENA)
-            en_b = self.GPIO.input(MOTOR_RIGHT_ENB)
-        return en_a, en_b
-
     def increase_speed_factor(self):
         self.speed_factor += 0.1
         # Clamp speed factor to [0.1, 1.0]
@@ -164,7 +159,7 @@ class Core():
 
         self.GPIO.cleanup()  # clean up GPIO
 
-    def setup_motor(self, pwm_pin, a, b, frequency=10000):
+    def setup_motor(self, pwm_pin, a, b, frequency=1000):
         """ Setup the GPIO for a single motor.
 
         Return: PWM controller for single motor.
@@ -208,19 +203,29 @@ class Core():
         if not enable:
             self.set_neutral()
 
+    def event_callback(self, channel):
+        """ GPIO Event callback function """
+        # Test the resetting motors boolean variable.
+        # This will veto multiple failures whilst we
+        # are already midst motor reset.
+        if not self.resetting_motors:
+            self.resetting_motors = True  # Enable Veto
+            self.reset_motors()  # Reset motors
+            self.resetting_motors = False  # Disable Veto
+
     def reset_motors(self):
         """ Reset BOTH motor inouts (keeping PWM values) """
-        if self.motors_enabled and (not self.is_motor_working('left') or not self.is_motor_working('right')):
-            self.reset_motor(
-                self.motor['left'],
-                MOTOR_LEFT_A,
-                MOTOR_LEFT_B
-            )
-            self.reset_motor(
-                self.motor['right'],
-                MOTOR_RIGHT_A,
-                MOTOR_RIGHT_B
-            )
+        self.reset_motor(
+            self.motor['left'],
+            MOTOR_LEFT_A,
+            MOTOR_LEFT_B
+        )
+        self.reset_motor(
+            self.motor['right'],
+            MOTOR_RIGHT_A,
+            MOTOR_RIGHT_B
+        )
+        print("Reset Motors")
 
     def reset_motor(self, motor, a, b):
         """ Reset motor inouts (keeping PWM values) """
@@ -235,9 +240,12 @@ class Core():
         elif not in_a and in_b:
             forward = False
 
-        # Set BOTH mot A and B inputs false
+        # To Reset, put motor in reverse
         self.GPIO.output(a, 0)
-        self.GPIO.output(b, 0)
+        self.GPIO.output(b, 1)
+
+        # Pause a very small time to allow it to reset
+        time.sleep(0.005)
 
         # Now reset motor directional pins
         if forward:
@@ -250,7 +258,7 @@ class Core():
     def set_motor_speed(self, motor, a, b, speed=0.0):
         """ Change a motors speed.
 
-        Method expects a value in the range of [-1.0, 1.0]
+        Method expects a value in the range of [-100.0, 100.0]
         """
         forward = True
 
@@ -287,7 +295,7 @@ class Core():
         left_speed,
         right_speed
     ):
-        """ Send motors speed value in range [-1,1]
+        """ Send motors speed value in range [-100.0,100.0]
             where 0 = neutral """
         if self.motors_enabled:  # Ignore speed change if disabled.
             self.set_motor_speed(
