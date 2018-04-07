@@ -50,10 +50,10 @@ class Core():
         GPIO.setup(MOTOR_RIGHT_ENB, GPIO.IN)
 
         # Add the event callback detection for when the motors trip out.
-        GPIO.add_event_detect(MOTOR_LEFT_ENA, GPIO.RISING, self.event_callback)
-        GPIO.add_event_detect(MOTOR_LEFT_ENB, GPIO.RISING, self.event_callback)
-        GPIO.add_event_detect(MOTOR_RIGHT_ENA, GPIO.RISING, self.event_callback)
-        GPIO.add_event_detect(MOTOR_RIGHT_ENB, GPIO.RISING, self.event_callback)
+        GPIO.add_event_detect(MOTOR_LEFT_ENA, GPIO.FALLING, self.event_callback)
+        GPIO.add_event_detect(MOTOR_LEFT_ENB, GPIO.FALLING, self.event_callback)
+        GPIO.add_event_detect(MOTOR_RIGHT_ENA, GPIO.FALLING, self.event_callback)
+        GPIO.add_event_detect(MOTOR_RIGHT_ENB, GPIO.FALLING, self.event_callback)
 
         # Configure motor pins with GPIO
         self.motor = dict()

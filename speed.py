@@ -10,10 +10,14 @@ class Speed:
         self.oled = oled
         self.killed = False
         self.core = core_module
-        self.time_limit = 16  # How many seconds before auto cutoff
+        self.time_limit = 3  # How many seconds before auto cutoff
         self.pidc = PID.PID(0.5, 0.0, 0.1)
         self.control_mode = "LINEAR"
-        self.deadband = 20  # size of deadband in mm
+        self.deadband = 10  # size of deadband in mm
+
+        self.pidc = PID.PID(1.0, 0.0, 0.0)
+        self.threshold_side = 400.0
+        self.threshold_front = 200.0
 
     def stop(self):
         """Simple method to stop the RC loop"""
@@ -40,7 +44,7 @@ class Speed:
             speed_drop = (abs(distance_offset) / float(arbitrary_offset))
             print("DropSpeed = {}".format(speed_drop))
             # Reduce speed drop by factor to turning sensitivity/affect.
-            speed_drop = speed_drop * 0.5
+            speed_drop = speed_drop * 0.8
 
             if distance_offset < 0:
                 leftspeed = speed_max - speed_drop
@@ -52,28 +56,33 @@ class Speed:
                 leftspeed = speed_max
                 rightspeed = speed_max
 
+        # Left motors are ever so slightly slower,
+        # fudge the rign speed down a tad to balance
+        rightspeed *= 0.8
+
         return leftspeed, rightspeed
 
     def decide_speeds_pid(self, distance_offset):
         """ Use the pid  method to decide motor speeds. """
-        # speed_mid = -0.14
-        # speed_range = -0.2
+        speed_mid = -0.14
+        speed_range = -0.2
+        distance_range = 50.0
 
-        # self.pidc.update(distance_offset, ignore_d)
+        ignore_d = False
+        self.pidc.update(distance_offset, ignore_d)
 
-        # deviation = self.pidc.output / distance_range
-        # c_deviation = max(-1.0, min(1.0, deviation))
+        deviation = self.pidc.output / distance_range
+        c_deviation = max(-1.0, min(1.0, deviation))
 
-        # print("PID out: %f" % deviation)
+        print("PID out: %f" % deviation)
 
-        # if self.follow_left:
-        #     leftspeed = (speed_mid - (c_deviation * speed_range))
-        #     rightspeed = (speed_mid + (c_deviation * speed_range))
-        # else:
-        #     leftspeed = (speed_mid + (c_deviation * speed_range))
-        #     rightspeed = (speed_mid - (c_deviation * speed_range))
-        leftspeed = 0
-        rightspeed = 0
+        if self.follow_left:
+            leftspeed = (speed_mid - (c_deviation * speed_range))
+            rightspeed = (speed_mid + (c_deviation * speed_range))
+        else:
+            leftspeed = (speed_mid + (c_deviation * speed_range))
+            rightspeed = (speed_mid - (c_deviation * speed_range))
+
         return leftspeed, rightspeed
 
     def decide_speeds(self, distance_offset):
@@ -127,7 +136,6 @@ class Speed:
         time_delta = 0
 
         while not self.killed and time_delta < self.time_limit:
-            print("Reading LEFT")
             try:
                 lidar_dev = self.core.lidars[
                     str(I2C_Lidar.LIDAR_LEFT)
@@ -135,7 +143,6 @@ class Speed:
                 distance_left = lidar_dev['device'].get_distance()
             except KeyError:
                 distance_left = -1
-            print("Reading FRONT")
             try:
                 lidar_dev = self.core.lidars[
                     str(I2C_Lidar.LIDAR_FRONT)
@@ -143,7 +150,6 @@ class Speed:
                 distance_front = lidar_dev['device'].get_distance()
             except KeyError:
                 distance_front = -1
-            print("Reading RIGHT")
             try:
                 lidar_dev = self.core.lidars[
                     str(I2C_Lidar.LIDAR_RIGHT)
@@ -154,29 +160,39 @@ class Speed:
 
             # Have we fallen out of the end of
             # the course or nearing obstruction?
-            if ((distance_left > 400 and distance_right > 400) or
-               distance_front < 400):
+            if ((distance_left > self.threshold_side and distance_right > self.threshold_side) or
+               distance_front < self.threshold_front):
                 print("Outside of speed run")
                 self.killed = True
                 break
 
-            # Report offset from centre
-            distance_offset = distance_left - distance_right
-            print("Distance is %d" % (distance_offset))
+            if not self.killed:
+                # Report offset from centre
+                distance_offset = distance_left - distance_right
+                print("Offset is %d (%d : %d)" % (distance_offset, distance_left, distance_right))
 
-            # Calculate motor speeds
-            leftspeed, rightspeed = self.decide_speeds(distance_offset)
+                # Got too close, ensure motors are actually working
+                if distance_left <= 80 or distance_right <= 80:
+                    print("Resetting motors")
+                    self.core.reset_motors()
 
-            # Send speeds to motors
-            self.core.throttle(leftspeed, rightspeed)
-            print("Motors %f, %f" % (leftspeed, rightspeed))
+                # Calculate motor speeds
+                leftspeed, rightspeed = self.decide_speeds(distance_offset)
 
-            time.sleep(0.1)
-            current_time = time.time()
-            time_delta = current_time - start_time
-            print("{}".format(time_delta))
+                # Send speeds to motors
+                self.core.throttle(leftspeed*100.0, rightspeed*100.0)
+                print("Motors %f, %f" % (leftspeed, rightspeed))
+
+                time.sleep(0.1)
+                current_time = time.time()
+                time_delta = current_time - start_time
+                print("{}".format(time_delta))
 
         # Turn motors off and set into neutral (stops the vehicle moving)
+        print("Appling Brakes")
+        self.core.throttle(-50.0, -50.0)
+        time.sleep(0.25)
+        print("Neutral")
         self.core.enable_motors(False)
 
 
@@ -198,7 +214,6 @@ def main():
     # Manually enable motors in this mode as controller not hooked up
     core_module.enable_motors(True)
     speed.run()
-
 
 if __name__ == '__main__':
     main()
