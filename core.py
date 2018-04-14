@@ -44,16 +44,16 @@ class Core():
         self.DEBUG = False
 
         # Configure GPIO pins to detect motor controller errors
-        GPIO.setup(MOTOR_LEFT_ENA, GPIO.IN)
-        GPIO.setup(MOTOR_LEFT_ENB, GPIO.IN)
-        GPIO.setup(MOTOR_RIGHT_ENA, GPIO.IN)
-        GPIO.setup(MOTOR_RIGHT_ENB, GPIO.IN)
+        #GPIO.setup(MOTOR_LEFT_ENA, GPIO.IN)
+        #GPIO.setup(MOTOR_LEFT_ENB, GPIO.IN)
+        #GPIO.setup(MOTOR_RIGHT_ENA, GPIO.IN)
+        #GPIO.setup(MOTOR_RIGHT_ENB, GPIO.IN)
 
         # Add the event callback detection for when the motors trip out.
-        GPIO.add_event_detect(MOTOR_LEFT_ENA, GPIO.FALLING, self.event_callback)
-        GPIO.add_event_detect(MOTOR_LEFT_ENB, GPIO.FALLING, self.event_callback)
-        GPIO.add_event_detect(MOTOR_RIGHT_ENA, GPIO.FALLING, self.event_callback)
-        GPIO.add_event_detect(MOTOR_RIGHT_ENB, GPIO.FALLING, self.event_callback)
+        #GPIO.add_event_detect(MOTOR_LEFT_ENA, GPIO.FALLING, self.event_callback)
+        #GPIO.add_event_detect(MOTOR_LEFT_ENB, GPIO.FALLING, self.event_callback)
+        #GPIO.add_event_detect(MOTOR_RIGHT_ENA, GPIO.FALLING, self.event_callback)
+        #GPIO.add_event_detect(MOTOR_RIGHT_ENB, GPIO.FALLING, self.event_callback)
 
         # Configure motor pins with GPIO
         self.motor = dict()
@@ -97,7 +97,10 @@ class Core():
             lidar_dev = dict()
             lidar_dev['gpio_pin'] = gpio_pin
             lidar_dev['i2c_address'] = new_address
-            lidar_dev['device'] = VL53L0X.VL53L0X(address=new_address)
+            try:
+                lidar_dev['device'] = VL53L0X.VL53L0X(address=new_address)
+            except:
+                lidar_dev['device'] = None
 
             # Set the pin low to turn sensor on
             self.GPIO.output(gpio_pin, self.GPIO.LOW)
@@ -105,7 +108,10 @@ class Core():
             # Wait half second to ensure devices are ON
             time.sleep(0.5)
 
-            lidar_dev['device'].start_ranging(VL53L0X.VL53L0X_LONG_RANGE_MODE)
+            try:
+                lidar_dev['device'].start_ranging(VL53L0X.VL53L0X_LONG_RANGE_MODE)
+            except:
+                pass
 
             # Assign the newly created dictionary
             # into the dictionary of lidar devices.
