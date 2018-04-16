@@ -14,6 +14,7 @@ import cv2
 import numpy
 import core
 import RPi.GPIO as GPIO
+import gopigo
 
 print('Libraries loaded')
 
@@ -58,6 +59,7 @@ class StreamProcessor(threading.Thread):
         self.terminated = False
         self.start()
         self.begin = 0
+        gopigo.stop()
 
     def run(self):
         # This method runs in a separate thread
@@ -77,12 +79,14 @@ class StreamProcessor(threading.Thread):
     # Image processing function
     def ProcessImage(self, image, colour):
         # View the original image seen by the camera.
+        # Crop the image down to just the bit with the arena in
+        image = image[100:240,0:320]
+
         if debug:
            cv2.imshow('original', image)
            cv2.waitKey(0)
 
-        # Crop the image down to just the bit with the arena in
-        image = image[0:240,0:-100]
+
 
         # Blur the image
         # image = cv2.medianBlur(image, 5)
@@ -222,7 +226,6 @@ class StreamProcessor(threading.Thread):
                     print('Now looking for %s ball' % (colour))
                     driveLeft = -0.5
                     driveRight = -0.5
-                    time.sleep(1)
             else:
                 if area < autoFullSpeedArea:
                     speed = 1.0
@@ -230,17 +233,22 @@ class StreamProcessor(threading.Thread):
                     speed = 1.0 / (area / autoFullSpeedArea)
                 speed *= autoMaxPower - autoMinPower
                 speed += autoMinPower
-                direction = (imageCentreY - y) / imageCentreY
+                direction = (imageCentreX - x) / imageCentreX
+                direction = direction * 1.5
                 if direction < 0.0:
-                    # Turn left
-                    print('Turn down(right) for %s' % colour)
-                    driveLeft = speed * (1.0 + direction)
-                    driveRight = speed
-                else:
                     # Turn right
-                    print('Turn up(left) for %s' % colour)
+                    print('Turn right for %s' % colour)
                     driveLeft = speed
-                    driveRight = speed * (1.0 - direction)
+                    driveRight = speed * (1.0 + direction)
+                    if driveRight < 0:
+                        driveRight = 0
+                else:
+                    # Turn left
+                    print('Turn left for %s' % colour)
+                    driveLeft = speed * (1.0 - direction)
+                    driveRight = speed
+                    if driveLeft < 0:
+                        driveLeft = 0
         else:
             print('No %s ball' % colour)
             driveLeft = 0.4
@@ -256,6 +264,8 @@ class StreamProcessor(threading.Thread):
         tickInt = tickInt + 1 if tickInt < 3 else 0
         print('(%s) %.2f, %.2f' % (asciiTick, driveLeft, driveRight))
         self.core_module.throttle(driveLeft, driveRight)
+        if (driveLeft == -0.5):
+            time.sleep(2)
 
 
 # SetMotor1(driveLeft)
