@@ -30,7 +30,7 @@ class rc:
             if self.core_module.motors_enabled:
                 message = "RC: %0.2f" % (self.core_module.speed_factor)
             else:
-                message = "RC: NEUTRAL"
+                message = "RC: NEUT (%0.2f)" % (self.core_module.speed_factor)
 
             self.oled.cls()  # Clear Screen
             self.oled.canvas.text((10, 10), message, fill=1)

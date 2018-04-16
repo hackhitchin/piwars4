@@ -27,7 +27,7 @@ camera.capture(rawCapture, format="bgr")
 
 # Show the full unbalanced image
 image = rawCapture.array
-cv2.imshow("Initial", image)
+# cv2.imshow("Initial", image)
 
 
 rawCapture.seek(0)
@@ -38,8 +38,8 @@ for i in range(10):
    # get the centre section, average RGB channels
    imagecentre = rawCapture.array[190:290, 270:370]
    
-   if i == 9:
-      cv2.imshow("Image" + str(i), imagecentre)
+   #if i == 9:
+   #   cv2.imshow("Image" + str(i), imagecentre)
    b, g, r = (np.mean(imagecentre[..., i]) for i in range(3))
    print('R:%5.2f, B:%5.2f = (%5.2f, %5.2f, %5.2f)' % (rg, bg, r, g, b))
 
@@ -74,8 +74,8 @@ for i in range(10):
 # display the image on screen and wait for a keypress
 camera.capture(rawCapture, format="bgr")
 final_image = rawCapture.array
-cv2.imshow("Final", final_image)
-cv2.waitKey(0)
+#cv2.imshow("Final", final_image)
+#cv2.waitKey(0)
 
 f = open('rbgains.txt','w')
 f.write("R:%5.2f\nB:%5.2f\n" % (rg, bg))

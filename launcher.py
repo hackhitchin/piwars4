@@ -9,8 +9,10 @@ import RPi.GPIO as GPIO
 
 import core
 import rc
+import speed
+import wall_follower
 
-import VL53L0X
+# import VL53L0X
 
 from enum import Enum
 
@@ -19,7 +21,7 @@ try:
 except ImportError:
     from ordereddict import OrderedDict
 
-import smbus
+# import smbus
 from lib_oled96 import ssd1306
 from approxeng.input.selectbinder import ControllerResource
 
@@ -41,12 +43,12 @@ class launcher:
         self.controller = None
 
         # Initialise GPIO
-        GPIO.setwarnings(False)
         self.GPIO = GPIO
+        self.GPIO.setwarnings(False)
         self.GPIO.setmode(self.GPIO.BCM)
 
         # Instantiate CORE / Chassis module and store in the launcher.
-        self.core = core.Core(self.GPIO, VL53L0X.tof_lib)
+        self.core = core.Core(self.GPIO)
 
         self.challenge = None
         self.challenge_thread = None
@@ -59,9 +61,9 @@ class launcher:
         # Mode/Challenge Dictionary
         self.menu_list = OrderedDict((
             (Mode.MODE_POWER, "Power Off"),
-            (Mode.MODE_RC, "RC")
-            # (Mode.MODE_MAZE, "Maze"),
-            #(Mode.MODE_SPEED, "Speed")
+            (Mode.MODE_RC, "RC"),
+            (Mode.MODE_MAZE, "Maze"),
+            (Mode.MODE_SPEED, "Speed")
         ))
         self.current_mode = Mode.MODE_NONE
         self.menu_mode = Mode.MODE_RC
@@ -69,8 +71,9 @@ class launcher:
         # Create oled object
         # Note: Set to None if you need to disable screen
         try:
-            self.oled = ssd1306(VL53L0X.i2cbus)
+            self.oled = ssd1306(self.core.i2cbus)
         except:
+            print("Failed to get OLED")
             self.oled = None
 
     def stop_threads(self):
@@ -146,7 +149,9 @@ class launcher:
             self.start_rc_mode()
         elif self.menu_mode == Mode.MODE_SPEED:
             logging.info("Speed Mode")
+            self.start_speed_mode()
         elif self.menu_mode == Mode.MODE_MAZE:
+            self.start_maze_mode()
             logging.info("Maze Mode")
 
     def menu_up(self):
@@ -242,12 +247,37 @@ class launcher:
         logging.info("Shutting Down Pi")
         os.system("sudo shutdown -h now")
 
+    def start_speed_mode(self):
+        # Kill any previous Challenge / RC mode
+        self.stop_threads()
+
+        # Set Wiimote LED to RC Mode index
+        self.current_mode = Mode.MODE_SPEED
+
+        # Set sensible speed
+        self.core.speed_factor = 0.4
+
+        # Inform user we are about to start RC mode
+        logging.info("Entering into SPEED Mode")
+        self.challenge = speed.Speed(self.core, self.oled)
+
+        # Create and start a new thread
+        # running the remote control script
+        logging.info("Starting SPEED Thread")
+        self.challenge_thread = threading.Thread(
+            target=self.challenge.run)
+        self.challenge_thread.start()
+        logging.info("SPEED Thread Running")
+
     def start_rc_mode(self):
         # Kill any previous Challenge / RC mode
         self.stop_threads()
 
         # Set Wiimote LED to RC Mode index
         self.current_mode = Mode.MODE_RC
+
+        # Set maximum power for RC
+        self.core.speed_factor = 1.0
 
         # Inform user we are about to start RC mode
         logging.info("Entering into RC Mode")
@@ -260,6 +290,22 @@ class launcher:
             target=self.challenge.run)
         self.challenge_thread.start()
         logging.info("RC Thread Running")
+
+    def start_maze_mode(self):
+        # Kill any previous Challenge / RC mode, yada yada as above
+        self.stop_threads()
+
+        self.current_mode = Mode.MODE_MAZE
+        self.core.speed_factor = 0.4
+
+        logging.info("Entering into Maze mode")
+        self.challenge = wall_follower.WallFollower(self.core, self.oled)
+
+        logging.info("Starting maze thread")
+        self.challenge_thread = threading.Thread(
+            target=self.challenge.run)
+        self.challenge_thread.start()
+        logging.info("Maze thread running")
 
     def run(self):
         """ Main Running loop controling bot mode and menu state """
@@ -285,6 +331,7 @@ class launcher:
                     self.oled.display()
 
                 # Initialise controller and bind now
+
                 with ControllerResource(dead_zone=0.1, hot_zone=0.2) as self.controller:
 
                     # Show state on OLED display
@@ -311,6 +358,7 @@ class launcher:
                             if ('dright' in self.controller.presses and
                                self.challenge is None):
                                 # Only works when NOT in a challenge
+                                print("Menu Item Pressed")
                                 self.menu_item_pressed()
                                 self.show_menu()
 
@@ -334,7 +382,13 @@ class launcher:
                                 # Toggle motor enable/disable
                                 # allow motors to move freely.
                                 # NOTE: will ALWAYS work
-                                self.core.enable_motors(not self.core.motors_enabled)
+                                self.core.enable_motors(
+                                    not self.core.motors_enabled
+                                )
+                                if self.core.motors_enabled:
+                                    print("Enabled")
+                                else:
+                                    print("Neutral")
 
                             # Increase or Decrease motor speed factor
                             if 'r1' in self.controller.presses:
@@ -367,9 +421,14 @@ if __name__ == "__main__":
         launcher.run()
     except (Exception, KeyboardInterrupt) as e:
         # Stop any active threads before leaving
+        print("Stopping: " + str(e))
         launcher.controller = None
         launcher.stop_threads()  # This will set neutral for us.
-        print("Stopping")
+        print("Clearing up")
+        launcher.core.cleanup()
+        launcher.GPIO.cleanup()
+
+
         print(str(e))
         # Show state on OLED display
         launcher.show_message('Exited Python Code')
