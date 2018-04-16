@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+##!/usr/bin/env python
 # coding: Latin
 
 # Load library functions we want
@@ -14,7 +14,6 @@ import cv2
 import numpy
 import core
 import RPi.GPIO as GPIO
-import gopigo
 
 print('Libraries loaded')
 
@@ -38,11 +37,11 @@ colour = colours[colourindex]
 # Camera settings
 imageWidth = 320  # Camera image width
 imageHeight = 240  # Camera image height
-frameRate = 3  # Camera image capture frame rate
+frameRate = 10  # Camera image capture frame rate
 
 # Auto drive settings
 autoMaxPower = 1.0  # Maximum output in automatic mode
-autoMinPower = 0.2  # Minimum output in automatic mode
+autoMinPower = 0.6  # Minimum output in automatic mode
 autoMinArea = 10  # Smallest target to move towards
 autoMaxArea = 10000  # Largest target to move towards
 autoFullSpeedArea = 300  # Target size at which we use the maximum allowed output
@@ -59,7 +58,6 @@ class StreamProcessor(threading.Thread):
         self.terminated = False
         self.start()
         self.begin = 0
-        gopigo.stop()
 
     def run(self):
         # This method runs in a separate thread
@@ -105,8 +103,8 @@ class StreamProcessor(threading.Thread):
                 image,
                 # numpy.array((113, 96, 64)),
                 # numpy.array((125, 255, 255))
-                numpy.array((160, 100, 50)),
-                numpy.array((180, 255, 255))
+                numpy.array((0, 100, 50)),
+                numpy.array((10, 255, 255))
             )
         elif colour == 'yellow':
             imrange = cv2.inRange(
@@ -203,6 +201,7 @@ class StreamProcessor(threading.Thread):
         global imageCentreX
         global imageCentreY
         global tickInt
+        backoff = -0.6
 
         driveLeft = 0.0
         driveRight = 0.0
@@ -223,8 +222,8 @@ class StreamProcessor(threading.Thread):
                 else:
                     colour = colours[colourindex]
                     print('Now looking for %s ball' % (colour))
-                    driveLeft = -0.5
-                    driveRight = -0.5
+                    driveLeft = backoff
+                    driveRight = backoff
             else:
                 if area < autoFullSpeedArea:
                     speed = 1.0
@@ -233,38 +232,45 @@ class StreamProcessor(threading.Thread):
                 speed *= autoMaxPower - autoMinPower
                 speed += autoMinPower
                 direction = (imageCentreX - x) / imageCentreX
-                direction = direction * 1.5
-                if direction < 0.0:
+                direction = direction * 5
+                if direction > 0.0:
                     # Turn right
                     print('Turn right for %s' % colour)
                     driveLeft = speed
-                    driveRight = speed * (1.0 + direction)
+                    driveRight = speed * (1.0 - direction)
                     if driveRight < 0:
                         driveRight = 0
                 else:
                     # Turn left
                     print('Turn left for %s' % colour)
-                    driveLeft = speed * (1.0 - direction)
+                    driveLeft = speed * (1.0 + direction)
                     driveRight = speed
                     if driveLeft < 0:
                         driveLeft = 0
         else:
             print('No %s ball' % colour)
-            driveLeft = 0.4
-            driveRight = 0.0
+            driveLeft = 0.55
+            driveRight = -0.55
+
         if tickInt == 0:
             asciiTick = "|   "
         elif tickInt == 1:
-            asciiTick = " |  " 
+            asciiTick = " |  "
+            if (driveLeft != backoff):
+                driveLeft = 0
+                driveRight = 0
         elif tickInt == 2:
             asciiTick = "  | "
         else:
             asciiTick = "   |"
+            if (driveLeft != backoff):
+                driveLeft = 0
+                driveRight = 0
         tickInt = tickInt + 1 if tickInt < 3 else 0
         print('(%s) %.2f, %.2f' % (asciiTick, driveLeft, driveRight))
-        self.core_module.throttle(driveLeft, driveRight)
-        if (driveLeft == -0.5):
-            time.sleep(2)
+        self.core_module.throttle(driveLeft*100, driveRight*100)
+        if (driveLeft == backoff):
+            time.sleep(0.6)
 
 
 # SetMotor1(driveLeft)
@@ -318,10 +324,11 @@ def main():
     # Instantiate CORE / Chassis module and store in the launcher.
     core_module = core.Core(GPIO)
     # Limit motor speeds in AutoMode
-    core_module.decrease_speed_factor()  # 90%
-    core_module.decrease_speed_factor()  # 80%
-    core_module.decrease_speed_factor()  # 70%
-    core_module.decrease_speed_factor()  # 60%
+    #core_module.decrease_speed_factor()  # 90%
+    #core_module.decrease_speed_factor()  # 80%
+    #core_module.decrease_speed_factor()  # 70%
+    #core_module.decrease_speed_factor()  # 60%
+    core_module.speed_factor = 0.6
     core_module.enable_motors(True)
 
     # Setup the camera
