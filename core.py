@@ -37,23 +37,25 @@ class Core():
 
         self.i2cbus = VL53L0X.i2cbus
         self.resetting_motors = False
+        self.ena_pins = False
 
         # Motors will be disabled by default.
         self.motors_enabled = False
         self.GPIO = GPIO
         self.DEBUG = False
 
-        # Configure GPIO pins to detect motor controller errors
-        GPIO.setup(MOTOR_LEFT_ENA, GPIO.IN)
-        GPIO.setup(MOTOR_LEFT_ENB, GPIO.IN)
-        GPIO.setup(MOTOR_RIGHT_ENA, GPIO.IN)
-        GPIO.setup(MOTOR_RIGHT_ENB, GPIO.IN)
+        if self.ena_pins:
+            # Configure GPIO pins to detect motor controller errors
+            GPIO.setup(MOTOR_LEFT_ENA, GPIO.IN)
+            GPIO.setup(MOTOR_LEFT_ENB, GPIO.IN)
+            GPIO.setup(MOTOR_RIGHT_ENA, GPIO.IN)
+            GPIO.setup(MOTOR_RIGHT_ENB, GPIO.IN)
 
-        # Add the event callback detection for when the motors trip out.
-        GPIO.add_event_detect(MOTOR_LEFT_ENA, GPIO.FALLING, self.event_callback)
-        GPIO.add_event_detect(MOTOR_LEFT_ENB, GPIO.FALLING, self.event_callback)
-        GPIO.add_event_detect(MOTOR_RIGHT_ENA, GPIO.FALLING, self.event_callback)
-        GPIO.add_event_detect(MOTOR_RIGHT_ENB, GPIO.FALLING, self.event_callback)
+            # Add the event callback detection for when the motors trip out.
+            GPIO.add_event_detect(MOTOR_LEFT_ENA, GPIO.FALLING, self.event_callback)
+            GPIO.add_event_detect(MOTOR_LEFT_ENB, GPIO.FALLING, self.event_callback)
+            GPIO.add_event_detect(MOTOR_RIGHT_ENA, GPIO.FALLING, self.event_callback)
+            GPIO.add_event_detect(MOTOR_RIGHT_ENB, GPIO.FALLING, self.event_callback)
 
         # Configure motor pins with GPIO
         self.motor = dict()
@@ -69,7 +71,7 @@ class Core():
         )
 
         # Speed Multiplier 1.0 == max
-        self.speed_factor = 1.0
+        self.speed_factor = 0.4 # start off in safe-ish mode
 
         # Create a list of I2C time of flight lidar sensors
         # Note: we need to dynamically alter each
@@ -127,6 +129,7 @@ class Core():
                 print("{}mm".format(distance_front))
                 print('######')
 
+
     def increase_speed_factor(self):
         self.speed_factor += 0.1
         # Clamp speed factor to [0.1, 1.0]
@@ -134,6 +137,7 @@ class Core():
             self.speed_factor = 1.0
         elif self.speed_factor < 0.1:
             self.speed_factor = 0.1
+        print ("New speed factor %0.1f" % (self.speed_factor) )
 
     def decrease_speed_factor(self):
         self.speed_factor -= 0.1
@@ -142,6 +146,7 @@ class Core():
             self.speed_factor = 1.0
         elif self.speed_factor < 0.1:
             self.speed_factor = 0.1
+        print ("New speed factor %0.1f" % (self.speed_factor) )
 
     def cleanup(self):
         self.motor['left'].stop()  # stop the PWM output
@@ -297,6 +302,8 @@ class Core():
     ):
         """ Send motors speed value in range [-100.0,100.0]
             where 0 = neutral """
+        if self.ena_pins:
+            print self.GPIO.input(MOTOR_LEFT_ENA), self.GPIO.input(MOTOR_LEFT_ENB)
         if self.motors_enabled:  # Ignore speed change if disabled.
             self.set_motor_speed(
                 self.motor['left'],

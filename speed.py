@@ -10,14 +10,15 @@ class Speed:
         self.oled = oled
         self.killed = False
         self.core = core_module
-        self.time_limit = 3  # How many seconds before auto cutoff
-        self.pidc = PID.PID(0.5, 0.0, 0.1)
-        self.control_mode = "LINEAR"
+        self.time_limit = 6  # How many seconds before auto cutoff
+        # self.pidc = PID.PID(0.7, 0.3, 0.4) # best I've got so far
+        self.pidc = PID.PID(1.3, 0.4, 0.6)
+        self.control_mode = "PID"
         self.deadband = 10  # size of deadband in mm
 
-        self.pidc = PID.PID(1.0, 0.0, 0.0)
+        # self.pidc = PID.PID(1.0, 0.0, 0.0)
         self.threshold_side = 400.0
-        self.threshold_front = 200.0
+        self.threshold_front = 0.0 # 200.0 - too prone to stopping unnecessarily
 
     def stop(self):
         """Simple method to stop the RC loop"""
@@ -44,7 +45,7 @@ class Speed:
             speed_drop = (abs(distance_offset) / float(arbitrary_offset))
             print("DropSpeed = {}".format(speed_drop))
             # Reduce speed drop by factor to turning sensitivity/affect.
-            speed_drop = speed_drop * 0.8
+            speed_drop = speed_drop * 1.0 # 0.8
 
             if distance_offset < 0:
                 leftspeed = speed_max - speed_drop
@@ -64,8 +65,8 @@ class Speed:
 
     def decide_speeds_pid(self, distance_offset):
         """ Use the pid  method to decide motor speeds. """
-        speed_mid = -0.14
-        speed_range = -0.2
+        speed_mid = 1 # 0.3 safe
+        speed_range = 1 # -0.2 - backwards motors?
         distance_range = 50.0
 
         ignore_d = False
@@ -76,12 +77,15 @@ class Speed:
 
         print("PID out: %f" % deviation)
 
-        if self.follow_left:
+        # Slow one motor more than we speed the other one up
+        if (c_deviation > 0):
             leftspeed = (speed_mid - (c_deviation * speed_range))
-            rightspeed = (speed_mid + (c_deviation * speed_range))
+            rightspeed = (speed_mid + (c_deviation * speed_range * 0.8))
         else:
-            leftspeed = (speed_mid + (c_deviation * speed_range))
-            rightspeed = (speed_mid - (c_deviation * speed_range))
+            leftspeed = (speed_mid - (c_deviation * speed_range * 0.8))
+            rightspeed = (speed_mid + (c_deviation * speed_range))
+
+        rightspeed *= 0.8 # FUDGE the right motors slower a bit because they are stronger
 
         return leftspeed, rightspeed
 
@@ -107,7 +111,7 @@ class Speed:
             if self.core.motors_enabled:
                 message = "SPEED: %0.2f" % (self.core.speed_factor)
             else:
-                message = "SPEED: NEUTRAL"
+                message = "SPEED: NEUTRAL (%0.2f)" % (self.core.speed_factor)
 
             self.oled.cls()  # Clear Screen
             self.oled.canvas.text((10, 10), message, fill=1)
@@ -130,10 +134,12 @@ class Speed:
         print("Starting speed run now...")
 
         # Reduce MAX speed to 80%, stops motor controller kicking off.
-        self.core.speed_factor = 0.5
+        # self.core.speed_factor = 0.5
 
         start_time = time.time()
         time_delta = 0
+        soft_start_power = 0.5 # 50% power during soft start
+        soft_start_time = 0.5 # seconds of soft start
 
         while not self.killed and time_delta < self.time_limit:
             try:
@@ -141,6 +147,7 @@ class Speed:
                     str(I2C_Lidar.LIDAR_LEFT)
                 ]
                 distance_left = lidar_dev['device'].get_distance()
+                print("Left: %d" % (distance_left) )
             except KeyError:
                 distance_left = -1
             try:
@@ -148,6 +155,7 @@ class Speed:
                     str(I2C_Lidar.LIDAR_FRONT)
                 ]
                 distance_front = lidar_dev['device'].get_distance()
+                print("Front: %d" % (distance_front) )
             except KeyError:
                 distance_front = -1
             try:
@@ -155,6 +163,7 @@ class Speed:
                     str(I2C_Lidar.LIDAR_RIGHT)
                 ]
                 distance_right = lidar_dev['device'].get_distance()
+                print("Right: %d" % (distance_right) )
             except KeyError:
                 distance_right = -1
 
@@ -178,6 +187,10 @@ class Speed:
 
                 # Calculate motor speeds
                 leftspeed, rightspeed = self.decide_speeds(distance_offset)
+
+                if (time.time() < soft_start_time) :
+                    leftspeed = leftspeed * soft_start_power
+                    rightspeed = rightspeed * soft_start_power
 
                 # Send speeds to motors
                 self.core.throttle(leftspeed*100.0, rightspeed*100.0)

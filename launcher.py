@@ -10,6 +10,7 @@ import RPi.GPIO as GPIO
 import core
 import rc
 import speed
+import wall_follower
 
 # import VL53L0X
 
@@ -61,7 +62,7 @@ class launcher:
         self.menu_list = OrderedDict((
             (Mode.MODE_POWER, "Power Off"),
             (Mode.MODE_RC, "RC"),
-            # (Mode.MODE_MAZE, "Maze"),
+            (Mode.MODE_MAZE, "Maze"),
             (Mode.MODE_SPEED, "Speed")
         ))
         self.current_mode = Mode.MODE_NONE
@@ -150,6 +151,7 @@ class launcher:
             logging.info("Speed Mode")
             self.start_speed_mode()
         elif self.menu_mode == Mode.MODE_MAZE:
+            self.start_maze_mode()
             logging.info("Maze Mode")
 
     def menu_up(self):
@@ -252,6 +254,9 @@ class launcher:
         # Set Wiimote LED to RC Mode index
         self.current_mode = Mode.MODE_SPEED
 
+        # Set sensible speed
+        self.core.speed_factor = 0.4
+
         # Inform user we are about to start RC mode
         logging.info("Entering into SPEED Mode")
         self.challenge = speed.Speed(self.core, self.oled)
@@ -271,6 +276,9 @@ class launcher:
         # Set Wiimote LED to RC Mode index
         self.current_mode = Mode.MODE_RC
 
+        # Set maximum power for RC
+        self.core.speed_factor = 1.0
+
         # Inform user we are about to start RC mode
         logging.info("Entering into RC Mode")
         self.challenge = rc.rc(self.core, self.controller, self.oled)
@@ -282,6 +290,22 @@ class launcher:
             target=self.challenge.run)
         self.challenge_thread.start()
         logging.info("RC Thread Running")
+
+    def start_maze_mode(self):
+        # Kill any previous Challenge / RC mode, yada yada as above
+        self.stop_threads()
+
+        self.current_mode = Mode.MODE_MAZE
+        self.core.speed_factor = 0.4
+
+        logging.info("Entering into Maze mode")
+        self.challenge = wall_follower.WallFollower(self.core, self.oled)
+
+        logging.info("Starting maze thread")
+        self.challenge_thread = threading.Thread(
+            target=self.challenge.run)
+        self.challenge_thread.start()
+        logging.info("Maze thread running")
 
     def run(self):
         """ Main Running loop controling bot mode and menu state """
@@ -307,6 +331,7 @@ class launcher:
                     self.oled.display()
 
                 # Initialise controller and bind now
+
                 with ControllerResource(dead_zone=0.1, hot_zone=0.2) as self.controller:
 
                     # Show state on OLED display
@@ -375,9 +400,6 @@ class launcher:
                             if self.challenge:
                                 self.challenge.show_state()
 
-                        # Reset the Motors
-                        # (will test if needs to before it does it)
-                        self.core.reset_motors()
                         time.sleep(0.05)
 
             except IOError:
@@ -399,7 +421,7 @@ if __name__ == "__main__":
         launcher.run()
     except (Exception, KeyboardInterrupt) as e:
         # Stop any active threads before leaving
-        print("Stopping")
+        print("Stopping: " + str(e))
         launcher.controller = None
         launcher.stop_threads()  # This will set neutral for us.
         print("Clearing up")
