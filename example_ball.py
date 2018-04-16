@@ -37,7 +37,7 @@ colour = colours[colourindex]
 # Camera settings
 imageWidth = 320  # Camera image width
 imageHeight = 240  # Camera image height
-frameRate = 10  # Camera image capture frame rate
+frameRate = 20  # Camera image capture frame rate
 
 # Auto drive settings
 autoMaxPower = 1.0  # Maximum output in automatic mode
@@ -202,7 +202,7 @@ class StreamProcessor(threading.Thread):
         global imageCentreY
         global tickInt
         backoff = -0.6
-
+        seek = 1.0
         driveLeft = 0.0
         driveRight = 0.0
         if ball:
@@ -249,8 +249,8 @@ class StreamProcessor(threading.Thread):
                         driveLeft = 0
         else:
             print('No %s ball' % colour)
-            driveLeft = 0.55
-            driveRight = -0.55
+            driveLeft = seek
+            driveRight = 0-seek
 
         if tickInt == 0:
             asciiTick = "|   "
