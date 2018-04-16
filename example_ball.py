@@ -14,6 +14,7 @@ import cv2
 import numpy
 import core
 import RPi.GPIO as GPIO
+import gopigo
 
 print('Libraries loaded')
 
@@ -30,7 +31,7 @@ global imageCentreY
 
 running = True
 debug = False
-colours = ['blue', 'red', 'green', 'yellow']
+colours = ['green', 'red', 'blue', 'yellow']
 colourindex = 0
 colour = colours[colourindex]
 
@@ -58,6 +59,7 @@ class StreamProcessor(threading.Thread):
         self.terminated = False
         self.start()
         self.begin = 0
+        gopigo.stop()
 
     def run(self):
         # This method runs in a separate thread
@@ -78,16 +80,20 @@ class StreamProcessor(threading.Thread):
     # Image processing function
     def ProcessImage(self, image, colour):
         # View the original image seen by the camera.
-        # if debug:
-        #    cv2.imshow('original', image)
-        #    cv2.waitKey(0)
+        # Crop the image down to just the bit with the arena in
+        image = image[100:240,0:320]
+
+        if debug:
+           cv2.imshow('original', image)
+           cv2.waitKey(0)
+
+
 
         # Blur the image
-        image = cv2.medianBlur(image, 5)
-        if debug:
-            cv2.imshow('blur', image)
-            cv2.waitKey
-
+        # image = cv2.medianBlur(image, 5)
+        # if debug:
+        #     cv2.imshow('blur', image)
+        #     cv2.waitKey
         # Convert the image from 'BGR' to HSV colour space
         image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
         # if debug:
@@ -121,9 +127,9 @@ class StreamProcessor(threading.Thread):
         elif colour == 'blue':
             imrange = cv2.inRange(
                 image,
-                # numpy.array((0, 64, 64)),
-                # numpy.array((15, 255, 255))
-                numpy.array((90, 64, 64)),
+                #numpy.array((0, 64, 64)),
+                #numpy.array((15, 255, 255))
+                numpy.array((90, 150, 64)),
                 numpy.array((130, 255, 255))
             )
 
@@ -137,6 +143,9 @@ class StreamProcessor(threading.Thread):
         #    cv2.waitKey(0)
 
         # View the filtered image found by 'imrange'
+
+        # Blur the mask, not the image
+        imrange = cv2.medianBlur(imrange, 5)
         if debug:
             cv2.imshow('imrange', imrange)
             cv2.waitKey()
@@ -161,8 +170,9 @@ class StreamProcessor(threading.Thread):
             # cx = x + (w / 2)
             # cy = y + (h / 2)
             area = w * h
+            contourarea = cv2.contourArea(contour)
 
-            extent = float(area)/area
+            extent = float(contourarea)/area
             aspect = float(w)/h
 
             cont_ballsiness = (1.0/aspect if aspect > 1 else aspect)
@@ -170,8 +180,9 @@ class StreamProcessor(threading.Thread):
             if (cont_ballsiness > ballsiness):
                 if (debug):
                     print("New ballsiest: %f" % ballsiness)
-                    print("extent = " + str(extent))
-                    print("aspect = " + str(aspect))
+                    print(" extent = " + str(extent))
+                    print(" aspect = " + str(aspect))
+                    print(" area = " + str(contourarea))
                 ballsiness = cont_ballsiness
                 # ballsiest_index = idx
 
@@ -191,11 +202,13 @@ class StreamProcessor(threading.Thread):
         global running
         global imageCentreX
         global imageCentreY
+        global tickInt
 
         driveLeft = 0.0
         driveRight = 0.0
         if ball:
             x = ball[0]
+            y = ball[1]
             area = ball[2]
             if area < autoMinArea:
                 print('Too small / far')
@@ -210,6 +223,8 @@ class StreamProcessor(threading.Thread):
                 else:
                     colour = colours[colourindex]
                     print('Now looking for %s ball' % (colour))
+                    driveLeft = -0.5
+                    driveRight = -0.5
             else:
                 if area < autoFullSpeedArea:
                     speed = 1.0
@@ -218,22 +233,38 @@ class StreamProcessor(threading.Thread):
                 speed *= autoMaxPower - autoMinPower
                 speed += autoMinPower
                 direction = (imageCentreX - x) / imageCentreX
+                direction = direction * 1.5
                 if direction < 0.0:
-                    # Turn left
-                    print('Turn left for %s' % colour)
-                    driveLeft = speed * (1.0 + direction)
-                    driveRight = speed
-                else:
                     # Turn right
                     print('Turn right for %s' % colour)
                     driveLeft = speed
-                    driveRight = speed * (1.0 - direction)
+                    driveRight = speed * (1.0 + direction)
+                    if driveRight < 0:
+                        driveRight = 0
+                else:
+                    # Turn left
+                    print('Turn left for %s' % colour)
+                    driveLeft = speed * (1.0 - direction)
+                    driveRight = speed
+                    if driveLeft < 0:
+                        driveLeft = 0
         else:
             print('No %s ball' % colour)
             driveLeft = 0.4
             driveRight = 0.0
-        print('%.2f, %.2f' % (driveLeft, driveRight))
+        if tickInt == 0:
+            asciiTick = "|   "
+        elif tickInt == 1:
+            asciiTick = " |  " 
+        elif tickInt == 2:
+            asciiTick = "  | "
+        else:
+            asciiTick = "   |"
+        tickInt = tickInt + 1 if tickInt < 3 else 0
+        print('(%s) %.2f, %.2f' % (asciiTick, driveLeft, driveRight))
         self.core_module.throttle(driveLeft, driveRight)
+        if (driveLeft == -0.5):
+            time.sleep(2)
 
 
 # SetMotor1(driveLeft)
@@ -278,6 +309,7 @@ def main():
     global imageCentreX
     global imageCentreY
     global running
+    global tickInt
 
     # Initialise GPIO
     GPIO.setwarnings(False)
@@ -315,6 +347,7 @@ def main():
 
     print('Wait ...')
     time.sleep(2)
+    tickInt = 0
     captureThread = ImageCapture()
 
     try:
