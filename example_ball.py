@@ -30,14 +30,14 @@ global imageCentreY
 
 running = True
 debug = False
-colours = ['green', 'red', 'blue', 'yellow']
+colours = ['red', 'blue', 'yellow', 'green']
 colourindex = 0
 colour = colours[colourindex]
 
 # Camera settings
 imageWidth = 320  # Camera image width
 imageHeight = 240  # Camera image height
-frameRate = 20  # Camera image capture frame rate
+frameRate = 30  # Camera image capture frame rate
 
 # Auto drive settings
 autoMaxPower = 1.0  # Maximum output in automatic mode
@@ -275,7 +275,7 @@ class StreamProcessor(threading.Thread):
         print('(%s) %.2f, %.2f' % (asciiTick, driveLeft, driveRight))
         self.core_module.throttle(driveLeft*100, driveRight*100)
         if (driveLeft == backoff):
-            time.sleep(0.6)
+            time.sleep(0.8)
 
 
 # SetMotor1(driveLeft)
@@ -312,7 +312,7 @@ class ImageCapture(threading.Thread):
                 processor.event.set()
 
 
-def main():
+def main(core_module):
 
     # Startup sequence
     global camera
@@ -322,19 +322,20 @@ def main():
     global running
     global tickInt
 
-    # Initialise GPIO
-    GPIO.setwarnings(False)
-    GPIO.setmode(GPIO.BCM)
+    if core_module is None:
+        # Initialise GPIO
+        GPIO.setwarnings(False)
+        GPIO.setmode(GPIO.BCM)
 
-    # Instantiate CORE / Chassis module and store in the launcher.
-    core_module = core.Core(GPIO)
-    # Limit motor speeds in AutoMode
-    #core_module.decrease_speed_factor()  # 90%
-    #core_module.decrease_speed_factor()  # 80%
-    #core_module.decrease_speed_factor()  # 70%
-    #core_module.decrease_speed_factor()  # 60%
-    core_module.speed_factor = 0.6
-    core_module.enable_motors(True)
+        # Instantiate CORE / Chassis module and store in the launcher.
+        core_module = core.Core(GPIO)
+        # Limit motor speeds in AutoMode
+        core_module.speed_factor = 0.6  # 0.6 on old motors
+        core_module.enable_motors(True)
+
+    # wait for the user to enable motors
+    while not core_module.motors_enabled:
+        time.sleep(0.25)
 
     # Setup the camera
     print('Setup camera')
@@ -385,6 +386,7 @@ def main():
     processor.join()
     del camera
     print("Program terminated")
+
 
 if __name__ == '__main__':
     main()

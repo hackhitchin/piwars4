@@ -11,6 +11,7 @@ import core
 import rc
 import speed
 import wall_follower
+import rainbow
 
 # import VL53L0X
 
@@ -32,9 +33,12 @@ class Mode(Enum):
     # Enum class for robot mode/challenge.
     MODE_NONE = 0
     MODE_POWER = 1
-    MODE_RC = 2
-    MODE_MAZE = 3
-    MODE_SPEED = 4
+    MODE_REBOOT = 2
+    MODE_RC = 3
+    MODE_MAZE = 4
+    MODE_SPEED = 5
+    MODE_SPEED_LINEAR = 6
+    MODE_RAINBOW = 7
 
 
 class launcher:
@@ -61,9 +65,12 @@ class launcher:
         # Mode/Challenge Dictionary
         self.menu_list = OrderedDict((
             (Mode.MODE_POWER, "Power Off"),
+            (Mode.MODE_REBOOT, "Reboot"),            
             (Mode.MODE_RC, "RC"),
             (Mode.MODE_MAZE, "Maze"),
-            (Mode.MODE_SPEED, "Speed")
+            (Mode.MODE_SPEED, "Speed"),
+            (Mode.MODE_SPEED_LINEAR, "Linear Speed"),
+            (Mode.MODE_RAINBOW, "Rainbow")
         ))
         self.current_mode = Mode.MODE_NONE
         self.menu_mode = Mode.MODE_RC
@@ -144,15 +151,24 @@ class launcher:
         if self.menu_mode == Mode.MODE_POWER:
             logging.info("Power Off")
             self.power_off()
+        elif self.menu_mode == Mode.MODE_REBOOT:
+            logging.info("Reboot")
+            self.reboot()
         elif self.menu_mode == Mode.MODE_RC:
             logging.info("RC Mode")
             self.start_rc_mode()
         elif self.menu_mode == Mode.MODE_SPEED:
             logging.info("Speed Mode")
             self.start_speed_mode()
+        elif self.menu_mode == Mode.MODE_SPEED_LINEAR:
+            logging.info("Linear Speed Mode")
+            self.start_speed_mode(True)
         elif self.menu_mode == Mode.MODE_MAZE:
             self.start_maze_mode()
             logging.info("Maze Mode")
+        elif self.menu_mode == Mode.MODE_RAINBOW:
+            self.start_rainbow_mode()
+            logging.info("Rainbow Mode")
 
     def menu_up(self):
         self.menu_mode = self.get_previous_mode(self.menu_mode)
@@ -247,19 +263,36 @@ class launcher:
         logging.info("Shutting Down Pi")
         os.system("sudo shutdown -h now")
 
-    def start_speed_mode(self):
+    def reboot(self):
+        """ Power down the pi """
+        self.stop_threads()
+        if self.oled is not None:
+            self.oled.cls()  # Clear Screen
+            self.oled.canvas.text((10, 10), 'Rebooting...', fill=1)
+            # Now show the mesasge on the screen
+            self.oled.display()
+        # Call system OS to shut down the Pi
+        logging.info("Rebooting Pi")
+        os.system("sudo reboot")
+
+    def start_speed_mode(self, linear):
         # Kill any previous Challenge / RC mode
         self.stop_threads()
 
         # Set Wiimote LED to RC Mode index
-        self.current_mode = Mode.MODE_SPEED
+        if linear:
+            self.current_mode = Mode.MODE_SPEED_LINEAR
+            style = "LINEAR"
+        else:
+            self.current_mode = Mode.MODE_SPEED
+            style = None  # Default to whatever.
 
         # Set sensible speed
         self.core.speed_factor = 0.4
 
         # Inform user we are about to start RC mode
         logging.info("Entering into SPEED Mode")
-        self.challenge = speed.Speed(self.core, self.oled)
+        self.challenge = speed.Speed(self.core, self.oled, style)
 
         # Create and start a new thread
         # running the remote control script
@@ -306,6 +339,22 @@ class launcher:
             target=self.challenge.run)
         self.challenge_thread.start()
         logging.info("Maze thread running")
+
+    def start_rainbow_mode(self):
+        # Kill any previous Challenge / RC mode, yada yada as above
+        self.stop_threads()
+
+        self.current_mode = Mode.MODE_RAINBOW
+        self.core.speed_factor = 0.4
+
+        logging.info("Entering into Maze mode")
+        self.challenge = rainbow.Rainbow(self.core, self.oled)
+
+        logging.info("Starting Rainbow thread")
+        self.challenge_thread = threading.Thread(
+            target=self.challenge.run)
+        self.challenge_thread.start()
+        logging.info("Rainbow thread running")
 
     def run(self):
         """ Main Running loop controling bot mode and menu state """
