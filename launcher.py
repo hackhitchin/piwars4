@@ -391,10 +391,25 @@ class launcher:
                                     print("Neutral")
 
                             # Increase or Decrease motor speed factor
-                            if 'r1' in self.controller.presses:
+                            if 'r1' in self.controller.presses or 'r2' in self.controller.presses:
                                 self.core.increase_speed_factor()
-                            if 'l1' in self.controller.presses:
+                            if 'l1' in self.controller.presses or 'l2' in self.controller.presses:
                                 self.core.decrease_speed_factor()
+
+                            # toggle on/off the gun motor
+                            if 'square' in self.controller.presses:
+                                self.core.enable_gun(not self.core.gun_enabled)
+                            # Fire the gun
+                            if 'circle' in self.controller.presses:
+                                self.core.fire_gun(5)
+                                time.sleep(1.0)
+                                self.core.fire_gun(175)
+
+                            # Move turret up/down
+                            if 'triangle' in self.controller.presses:
+                                self.core.move_turret_increment(10)
+                            if 'cross' in self.controller.presses:
+                                self.core.move_turret_increment(-10)
 
                             # Show current challenge state if we press buttons
                             if self.challenge:

@@ -12,10 +12,16 @@ MOTOR_RIGHT_PWM = 18
 MOTOR_RIGHT_A = 23
 MOTOR_RIGHT_B = 24
 
-MOTOR_LEFT_ENA = 36
-MOTOR_LEFT_ENB = 37
-MOTOR_RIGHT_ENA = 38
-MOTOR_RIGHT_ENB = 40
+MOTOR_GUN_SERVO = 13
+MOTOR_TURRET_SERVO = 6
+MOTOR_GUN_PWM = 12
+MOTOR_GUN_A = 5
+MOTOR_GUN_B = 25
+
+#MOTOR_LEFT_ENA = 36
+#MOTOR_LEFT_ENB = 37
+#MOTOR_RIGHT_ENA = 38
+#MOTOR_RIGHT_ENB = 40
 
 MAX_SPEED = 90
 
@@ -41,21 +47,35 @@ class Core():
 
         # Motors will be disabled by default.
         self.motors_enabled = False
+        self.gun_enabled = False
         self.GPIO = GPIO
         self.DEBUG = False
 
-        if self.ena_pins:
-            # Configure GPIO pins to detect motor controller errors
-            GPIO.setup(MOTOR_LEFT_ENA, GPIO.IN)
-            GPIO.setup(MOTOR_LEFT_ENB, GPIO.IN)
-            GPIO.setup(MOTOR_RIGHT_ENA, GPIO.IN)
-            GPIO.setup(MOTOR_RIGHT_ENB, GPIO.IN)
+        # Configure GPIO pins to detect motor controller errors
+        #GPIO.setup(MOTOR_LEFT_ENA, GPIO.IN)
+        #GPIO.setup(MOTOR_LEFT_ENB, GPIO.IN)
+        #GPIO.setup(MOTOR_RIGHT_ENA, GPIO.IN)
+        #GPIO.setup(MOTOR_RIGHT_ENB, GPIO.IN)
 
-            # Add the event callback detection for when the motors trip out.
-            GPIO.add_event_detect(MOTOR_LEFT_ENA, GPIO.FALLING, self.event_callback)
-            GPIO.add_event_detect(MOTOR_LEFT_ENB, GPIO.FALLING, self.event_callback)
-            GPIO.add_event_detect(MOTOR_RIGHT_ENA, GPIO.FALLING, self.event_callback)
-            GPIO.add_event_detect(MOTOR_RIGHT_ENB, GPIO.FALLING, self.event_callback)
+        # Add the event callback detection for when the motors trip out.
+        #GPIO.add_event_detect(MOTOR_LEFT_ENA, GPIO.FALLING, self.event_callback)
+        #GPIO.add_event_detect(MOTOR_LEFT_ENB, GPIO.FALLING, self.event_callback)
+        #GPIO.add_event_detect(MOTOR_RIGHT_ENA, GPIO.FALLING, self.event_callback)
+        #GPIO.add_event_detect(MOTOR_RIGHT_ENB, GPIO.FALLING, self.event_callback)
+
+        self.GPIO.setup(MOTOR_GUN_SERVO, GPIO.OUT)
+        self.gun_servo = self.GPIO.PWM(MOTOR_GUN_SERVO, 100)  # pin 33
+        duty = float(175.0) / 10.0 + 2.5
+        self.gun_servo.start(duty)
+
+        # turret servo config
+        self.turret_max = 180.0 / 2.0
+        self.turret_min = 15.0
+        self.turret_current = self.turret_min
+        self.GPIO.setup(MOTOR_TURRET_SERVO, GPIO.OUT)
+        #self.turret_servo = self.GPIO.PWM(MOTOR_TURRET_SERVO, 100)  # pin 33
+        duty = float(self.turret_min) / 10.0 + 2.5
+        #self.turret_servo.start(duty)
 
         # Configure motor pins with GPIO
         self.motor = dict()
@@ -68,6 +88,11 @@ class Core():
             MOTOR_RIGHT_PWM,
             MOTOR_RIGHT_A,
             MOTOR_RIGHT_B
+        )
+        self.motor['gun'] = self.setup_motor(
+            MOTOR_GUN_PWM,
+            MOTOR_GUN_A,
+            MOTOR_GUN_B
         )
 
         # Speed Multiplier 1.0 == max
@@ -99,7 +124,10 @@ class Core():
             lidar_dev = dict()
             lidar_dev['gpio_pin'] = gpio_pin
             lidar_dev['i2c_address'] = new_address
-            lidar_dev['device'] = VL53L0X.VL53L0X(address=new_address)
+            try:
+                lidar_dev['device'] = VL53L0X.VL53L0X(address=new_address)
+            except:
+                lidar_dev['device'] = None
 
             # Set the pin low to turn sensor on
             self.GPIO.output(gpio_pin, self.GPIO.LOW)
@@ -107,7 +135,10 @@ class Core():
             # Wait half second to ensure devices are ON
             time.sleep(0.5)
 
-            lidar_dev['device'].start_ranging(VL53L0X.VL53L0X_LONG_RANGE_MODE)
+            try:
+                lidar_dev['device'].start_ranging(VL53L0X.VL53L0X_LONG_RANGE_MODE)
+            except:
+                pass
 
             # Assign the newly created dictionary
             # into the dictionary of lidar devices.
@@ -151,6 +182,7 @@ class Core():
     def cleanup(self):
         self.motor['left'].stop()  # stop the PWM output
         self.motor['right'].stop()  # stop the PWM output
+        self.motor['gun'].stop()  # stop the PWM output
 
         # Turn off i2c lidar tof sensors
         print("Turning off I2C TOF sensors")
@@ -196,6 +228,7 @@ class Core():
 
         # Turn motors off by setting duty cycle back to zero.
         dutycycle = 0.0
+        self.motor['left'].ChangeDutyCycle(dutycycle)
         self.motor['right'].ChangeDutyCycle(dutycycle)
 
     def enable_motors(self, enable):
@@ -294,6 +327,37 @@ class Core():
 
         # Change the PWM duty cycle based on fabs() of speed value.
         motor.ChangeDutyCycle(dutycycle)
+
+    def enable_gun(self, enable):
+        speed = 0
+        if enable:
+            speed = -50
+        self.set_motor_speed(
+            self.motor['gun'],
+            MOTOR_GUN_A,
+            MOTOR_GUN_B,
+            speed=speed
+        )
+        self.gun_enabled = enable
+
+    def fire_gun(self, angle):
+        duty = float(angle) / 10.0 + 2.5
+        self.gun_servo.ChangeDutyCycle(duty)
+
+    def move_turret(self, angle):
+        duty = float(angle) / 10.0 + 2.5
+        self.turret_servo.ChangeDutyCycle(duty)
+
+    def move_turret_increment(self, increment):
+        new_angle = self.turret_current + increment
+        if new_angle < self.turret_min:
+            new_angle = self.turret_min
+        if new_angle > self.turret_max:
+            new_angle = self.turret_max
+
+        self.turret_current = new_angle
+        self.move_turret(new_angle)
+        print(new_angle)
 
     def throttle(
         self,
