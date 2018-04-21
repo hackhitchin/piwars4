@@ -12,6 +12,8 @@ MOTOR_RIGHT_PWM = 18
 MOTOR_RIGHT_A = 23
 MOTOR_RIGHT_B = 24
 
+MOTOR_GUN_SERVO = 13
+MOTOR_TURRET_SERVO = 6
 MOTOR_GUN_PWM = 12
 MOTOR_GUN_A = 5
 MOTOR_GUN_B = 25
@@ -44,6 +46,7 @@ class Core():
 
         # Motors will be disabled by default.
         self.motors_enabled = False
+        self.gun_enabled = False
         self.GPIO = GPIO
         self.DEBUG = False
 
@@ -58,6 +61,20 @@ class Core():
         #GPIO.add_event_detect(MOTOR_LEFT_ENB, GPIO.FALLING, self.event_callback)
         #GPIO.add_event_detect(MOTOR_RIGHT_ENA, GPIO.FALLING, self.event_callback)
         #GPIO.add_event_detect(MOTOR_RIGHT_ENB, GPIO.FALLING, self.event_callback)
+
+        self.GPIO.setup(MOTOR_GUN_SERVO, GPIO.OUT)
+        self.gun_servo = self.GPIO.PWM(MOTOR_GUN_SERVO, 100)  # pin 33
+        duty = float(175.0) / 10.0 + 2.5
+        self.gun_servo.start(duty)
+
+        # turret servo config
+        self.turret_max = 180.0 / 2.0
+        self.turret_min = 15.0
+        self.turret_current = self.turret_min
+        self.GPIO.setup(MOTOR_TURRET_SERVO, GPIO.OUT)
+        #self.turret_servo = self.GPIO.PWM(MOTOR_TURRET_SERVO, 100)  # pin 33
+        duty = float(self.turret_min) / 10.0 + 2.5
+        #self.turret_servo.start(duty)
 
         # Configure motor pins with GPIO
         self.motor = dict()
@@ -310,13 +327,33 @@ class Core():
     def enable_gun(self, enable):
         speed = 0
         if enable:
-            speed = -40
+            speed = -50
         self.set_motor_speed(
             self.motor['gun'],
             MOTOR_GUN_A,
             MOTOR_GUN_B,
             speed=speed
         )
+        self.gun_enabled = enable
+
+    def fire_gun(self, angle):
+        duty = float(angle) / 10.0 + 2.5
+        self.gun_servo.ChangeDutyCycle(duty)
+
+    def move_turret(self, angle):
+        duty = float(angle) / 10.0 + 2.5
+        self.turret_servo.ChangeDutyCycle(duty)
+
+    def move_turret_increment(self, increment):
+        new_angle = self.turret_current + increment
+        if new_angle < self.turret_min:
+            new_angle = self.turret_min
+        if new_angle > self.turret_max:
+            new_angle = self.turret_max
+
+        self.turret_current = new_angle
+        self.move_turret(new_angle)
+        print(new_angle)
 
     def throttle(
         self,
