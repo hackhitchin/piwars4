@@ -366,18 +366,21 @@ class launcher:
                                     print("Neutral")
 
                             # Increase or Decrease motor speed factor
-                            if 'r1' in self.controller.presses:
+                            if 'r1' in self.controller.presses or 'r2' in self.controller.presses:
                                 self.core.increase_speed_factor()
-                            if 'l1' in self.controller.presses:
+                            if 'l1' in self.controller.presses or 'l2' in self.controller.presses:
                                 self.core.decrease_speed_factor()
+
+                            # Turn on the gun motor
+                            if 'circle' in self.controller.presses:
+                                self.core.enable_gun(True)
+                            if 'square' in self.controller.presses:
+                                self.core.enable_gun(False)
 
                             # Show current challenge state if we press buttons
                             if self.challenge:
                                 self.challenge.show_state()
 
-                        # Reset the Motors
-                        # (will test if needs to before it does it)
-                        self.core.reset_motors()
                         time.sleep(0.05)
 
             except IOError:

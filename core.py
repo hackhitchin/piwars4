@@ -12,10 +12,14 @@ MOTOR_RIGHT_PWM = 18
 MOTOR_RIGHT_A = 23
 MOTOR_RIGHT_B = 24
 
-MOTOR_LEFT_ENA = 36
-MOTOR_LEFT_ENB = 37
-MOTOR_RIGHT_ENA = 38
-MOTOR_RIGHT_ENB = 40
+MOTOR_GUN_PWM = 12
+MOTOR_GUN_A = 5
+MOTOR_GUN_B = 25
+
+#MOTOR_LEFT_ENA = 36
+#MOTOR_LEFT_ENB = 37
+#MOTOR_RIGHT_ENA = 38
+#MOTOR_RIGHT_ENB = 40
 
 MAX_SPEED = 90
 
@@ -66,6 +70,11 @@ class Core():
             MOTOR_RIGHT_PWM,
             MOTOR_RIGHT_A,
             MOTOR_RIGHT_B
+        )
+        self.motor['gun'] = self.setup_motor(
+            MOTOR_GUN_PWM,
+            MOTOR_GUN_A,
+            MOTOR_GUN_B
         )
 
         # Speed Multiplier 1.0 == max
@@ -152,6 +161,7 @@ class Core():
     def cleanup(self):
         self.motor['left'].stop()  # stop the PWM output
         self.motor['right'].stop()  # stop the PWM output
+        self.motor['gun'].stop()  # stop the PWM output
 
         # Turn off i2c lidar tof sensors
         print("Turning off I2C TOF sensors")
@@ -197,6 +207,7 @@ class Core():
 
         # Turn motors off by setting duty cycle back to zero.
         dutycycle = 0.0
+        self.motor['left'].ChangeDutyCycle(dutycycle)
         self.motor['right'].ChangeDutyCycle(dutycycle)
 
     def enable_motors(self, enable):
@@ -295,6 +306,17 @@ class Core():
 
         # Change the PWM duty cycle based on fabs() of speed value.
         motor.ChangeDutyCycle(dutycycle)
+
+    def enable_gun(self, enable):
+        speed = 0
+        if enable:
+            speed = -40
+        self.set_motor_speed(
+            self.motor['gun'],
+            MOTOR_GUN_A,
+            MOTOR_GUN_B,
+            speed=speed
+        )
 
     def throttle(
         self,
