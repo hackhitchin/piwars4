@@ -201,8 +201,13 @@ class StreamProcessor(threading.Thread):
         global imageCentreX
         global imageCentreY
         global tickInt
-        backoff = -0.6
-        seek = 1.0
+
+        # Tuning constants
+        backoff = -0.6 # how fast to back out of the corner
+        seek = 1.0 # how fast to turn when we can't see a ball
+        hunt_reverse = -0.2 # how fast we may turn a wheel backwards when a ball is in sight
+
+
         driveLeft = 0.0
         driveRight = 0.0
         if ball:
@@ -238,15 +243,15 @@ class StreamProcessor(threading.Thread):
                     print('Turn right for %s' % colour)
                     driveLeft = speed
                     driveRight = speed * (1.0 - direction)
-                    if driveRight < 0:
-                        driveRight = 0
+                    if driveRight < hunt_reverse:
+                        driveRight = hunt_reverse
                 else:
                     # Turn left
                     print('Turn left for %s' % colour)
                     driveLeft = speed * (1.0 + direction)
                     driveRight = speed
-                    if driveLeft < 0:
-                        driveLeft = 0
+                    if driveLeft < hunt_reverse:
+                        driveLeft = hunt_reverse
         else:
             print('No %s ball' % colour)
             driveLeft = seek
